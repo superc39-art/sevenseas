@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>일곱 바다 쟁탈전</title><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-180.png"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#08151f"><meta name="color-scheme" content="dark"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="일곱 바다"><style>[hidden]{display:none!important}html,body{margin:0;height:100%;background:#08151f}</style></head><body><title>일곱 바다 쟁탈전</title>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>일곱 바다 쟁탈전</title><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-180.png"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#08151f"><meta name="color-scheme" content="dark"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="일곱 바다"><style>[hidden]{display:none!important}html,body{margin:0;height:100%;background:#08151f}@media (prefers-color-scheme: dark){html,body{background:#08151f}}</style></head><body><title>일곱 바다 쟁탈전</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -377,7 +377,9 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; left: 0; top: 0; }
 @media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
 
-:root { color-scheme: dark; }   /* the game is dark by design: saying so stops Samsung Internet & Chrome from force-darkening it (which turned the white logo screen black) */
+:root { color-scheme: dark; }
+/* Samsung Internet only skips its forced dark mode on pages that ship their own dark styles via prefers-color-scheme: this game is always dark, so it says so */
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark; } html, body { background: #08151f; } }   /* the game is dark by design: saying so stops Samsung Internet & Chrome from force-darkening it (which turned the white logo screen black) */
 /* studio splash */
 .splash { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #fff; cursor: pointer; transition: opacity .6s ease; }
 .splash.out { opacity: 0; pointer-events: none; }
@@ -3468,7 +3470,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v81', DEV_VER = BUILD;
+  const BUILD = 'v82', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -3492,7 +3494,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   }
   function paintDev() {
     $('devBtn').setAttribute('aria-pressed', devOn); $('devBtn').textContent = devOn ? '켜짐' : '꺼짐';
-    $('memoFab').hidden = !devOn; $('buildTag').hidden = !devOn; $('buildTag').textContent = `빌드 ${BUILD}`; $('memoListBtn').hidden = !devOn && !memos.length; $('memoHome').textContent = memos.some(m => m.sent) ? `새 ${memos.filter(m => !m.sent).length}개` : `${memos.length}개`;
+    $('memoFab').hidden = !devOn; $('buildTag').hidden = !devOn; $('buildTag').textContent = `빌드 ${BUILD}`; $('memoListBtn').hidden = !devOn; $('memoHome').textContent = memos.some(m => m.sent) ? `새 ${memos.filter(m => !m.sent).length}개` : `${memos.length}개`;
   }
   // memos you've already copied to the chat are marked sent: the next copy takes only the new ones, and the sent ones can be cleared
   const memoNew = () => memos.filter(m => !m.sent);
