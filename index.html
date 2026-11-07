@@ -3470,7 +3470,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v82', DEV_VER = BUILD;
+  const BUILD = 'v83', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -3554,6 +3554,27 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     memos = []; store.set('memos', memos); renderMemos(); paintDev(); toast('메모를 모두 지웠어요');
   });
   paintDev();
+  // Android back button: step back inside the game (close the top window, pause a battle) instead of leaving the app; at the title, press twice to leave
+  { let armed = 0;
+    const shown = id => { const e = $(id); return !!e && !e.hidden; };
+    const btn = id => { const e = $(id); return e && !e.hidden && e.offsetParent !== null ? e : null; };
+    const step = () => {
+      if (state === 'tour') return true;   // a mechanism card is up: it closes with its own button
+      const order = [['memoOv', 'memoCancel'], ['memoListOv', 'memoListBack'], ['guideOv', 'guideBack'], ['introOv', 'introSkip'], ['setOv', 'setBack'],
+        ['winOv', 'contBtn'], ['pauseOv', 'restartNo', 'resumeBtn'], ['endOv', 'mapBtn', 'setBtn'], ['brief', 'bBack'], ['camp', 'chartBack', 'campBack'],
+        ['shop', 'shopBack'], ['achOv', 'achBack'], ['menu', 'freeBack']];
+      for (const [ov, ...bs] of order) if (shown(ov)) { for (const b of bs) { const e = btn(b); if (e) { e.click(); return true; } } return true; }
+      if (state === 'play') { pause(); return true; }
+      return false;
+    };
+    try { history.replaceState({ isl: 0 }, ''); history.pushState({ isl: 1 }, ''); } catch (e) {}
+    addEventListener('popstate', () => {
+      if (step()) { armed = 0; try { history.pushState({ isl: 1 }, ''); } catch (e) {} return; }
+      const now = Date.now();
+      if (now - armed < 2000) { try { history.back(); } catch (e) {} return; }   // second press at the title: let the app close
+      armed = now; toast('뒤로 버튼을 한 번 더 누르면 나가요'); try { history.pushState({ isl: 1 }, ''); } catch (e) {}
+    });
+  }
   $('setBack').addEventListener('click', () => { $('setOv').hidden = true; xferMode = null; $('xferBox').hidden = $('xferRow').hidden = true; });
   // moving your save between devices or addresses: every stored key as one text code you copy out and paste back in
   let xferMode = null, xferAsk = false;
