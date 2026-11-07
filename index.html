@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>일곱 바다 쟁탈전</title><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-180.png"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#08151f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="일곱 바다"><style>[hidden]{display:none!important}html,body{margin:0;height:100%;background:#08151f}</style></head><body><title>일곱 바다 쟁탈전</title>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>일곱 바다 쟁탈전</title><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-180.png"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#08151f"><meta name="color-scheme" content="only light"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="일곱 바다"><style>[hidden]{display:none!important}html,body{margin:0;height:100%;background:#08151f}</style></head><body><title>일곱 바다 쟁탈전</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -377,6 +377,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; left: 0; top: 0; }
 @media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
 
+:root { color-scheme: only light; }
 /* studio splash */
 .splash { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #fff; cursor: pointer; transition: opacity .6s ease; }
 .splash.out { opacity: 0; pointer-events: none; }
@@ -3430,7 +3431,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   $('pSet').addEventListener('click', gesture(() => { feel('tick'); showSettings(); }));
   // ----- dev mode: memos taken anywhere, with the screen and battle state, gathered on the home screen to copy in one go -----
   // ----- patch log: what changed in each mission, shown only in dev mode so a playtest can check it -----
-  const PATCH_LATEST = 'v77';
+  const PATCH_LATEST = 'v79';
   const PATCH_LOG = {
     ar1: [['v76', ['적 대기 25→12초', '목표 T 병력 34→54']]],
     ar2: [['v76', ['적 대기 35→18초', '목표 K 병력 26→42']]],
@@ -3442,7 +3443,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     ar10: [['v76', ['적 대기 40→20초', '습격 더 일찍(60초 넘던 것 ×0.6)·1.3배 크게', '목표 X 병력 38→61']], ['v77', ['밤에 안 보이는 필라델피아 호엔 목표 깃발·안내 표시를 안 띄움', '길목에 경비 갤리(포대 30)', '화선과 불타는 거점이 밤바다를 밝힘(주변이 보이고 빛남)', '본진 시야 1.5배(등대를 잃어도 주변은 보임)']]],
     ar11: [['v76', ['적 대기 45→22초', '목표 K 병력 45→72']], ['v77', ['메리나 왕국이 따로 움직이는 세력(청록)으로: 아직 누구 편도 아니라 나도 해적도 못 침', '150초 안에 해적 진지 둘을 빼앗으면 내 편이 되어 스스로 해적을 침, 못 하면 해적 편', '우리 편 왕국으로 보낸 병력은 지원 병력']]],
     ar12: [['v76', ['적 대기 70→35초', '습격 더 일찍(60초 넘던 것 ×0.6)·1.3배 크게', '목표 K 병력 50→80']]],
-    ar13: [['v76', ['적 거점 병력 1.4배 (일찍 다 먹고 끝나던 문제)']], ['v77', ['구원 함대: 150초쯤 140명이 동쪽 바깥에서 점선 뱃길을 따라 예수 요새로 들어옴(상륙지 거점 없앰)', '빈 섬 둘을 포위 함대(18)로 — 초반에 섬 먹고 끝나던 문제']]],
+    ar13: [['v76', ['적 거점 병력 1.4배 (일찍 다 먹고 끝나던 문제)']], ['v77', ['구원 함대: 150초쯤 140명이 동쪽 바깥에서 점선 뱃길을 따라 예수 요새로 들어옴(상륙지 거점 없앰)', '빈 섬 둘을 포위 함대(18)로 — 초반에 섬 먹고 끝나던 문제']], ['v79', ['구원 함대: 80초부터 30초마다 50명씩 네 번(모두 200명) 동쪽 뱃길로 들어옴']]],
     ar14: [['v76', ['적 대기 60/60→30/30초', '습격 더 일찍(60초 넘던 것 ×0.6)·1.3배 크게']], ['v77', ['운하가 생명줄: 쥐고 있는 동안 30초마다 지중해 함대 30명이 운하를 지나 페림으로 내려옴', '제다가 운하 공사장을, 아덴이 내 앞선 거점을 25초마다 침', '두 세력 난이도 보통·대기 5초, 제다·아덴 50→80']]],
     ar15: [['v76', ['적 대기 50→25초', '습격 더 일찍(60초 넘던 것 ×0.6)·1.3배 크게', '목표 K 병력 60→96']], ['v77', ['코톤 군항 30→90, 35초부터 30초마다 점점 큰 함대가 쏟아져 나옴', '입구 탑을 빼앗으면 쇠사슬이 닫혀 코톤 함대가 갇힘 — 장치 카드 추가']]],
     ar8: [['v76', ['폭풍 세 번 → 작은 태풍이 35초부터 바다 전체를 쉬지 않고 휘저음(150초부터 하나 더), 점선이 향하는 곳', '태풍 안 함대 초당 16%, 거점 병력 초당 5% 감소·거점 멈춤', '반도 가운데 적 보루(30)가 육지 길을 막음', '적 난이도 보통·대기 5초, 40초부터 습격']]],
@@ -4589,12 +4590,16 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       ] },
     { id: 'ar13', name: '몸바사 공방전', place: '몸바사', race: 'iron', foes: [[2, 'corsair', 0, 0]],
       brief: '1696년부터 2년 9개월 동안, 몸바사 섬의 예수 요새는 오만 함대의 포위를 버텼다. 빈틈을 노리는 포위군에 맞서 요새를 4분 동안 지켜라. 3분쯤 구원 함대가 도착한다.',
-      learn: ['예수 요새를 잃으면 바로 실패예요', '병력을 한 번에 많이 빼면 적이 비어 있는 거점을 노려요', '150초쯤 고아에서 구원 함대 140명이 동쪽 뱃길로 들어와 예수 요새에 닿아요(점선 경로)'],
+      learn: ['예수 요새를 잃으면 바로 실패예요', '병력을 한 번에 많이 빼면 적이 비어 있는 거점을 노려요', '80초부터 30초마다 고아의 구원 함대 50명씩, 모두 네 번 동쪽 뱃길로 들어와 예수 요새에 닿아요(점선 경로)'],
       size: [460, 820], land: [[230, -150, 280], [-150, 450, 250], [230, 1000, 260], [255, 420, 95]],
       rules: { fortBuff: true, punish: true,
         script: [36, 62, 88, 114, 140, 166, 192, 218].map((at, i) => ({ at, do: 'raid', from: ['E1', 'E2', 'E3'], to: 'T', amt: 22 + i * 6, say: i === 0 ? '오만 함대의 첫 공격이 시작됐어요!' : i === 5 ? '오만 함대가 총공격을 시작했어요!' : null }))
-          .concat([{ at: 150, do: 'sail', route: [[520, 290], [440, 360]], to: 'T', amt: 140, name: '구원 함대', card: 'relief', title: '구원 함대가 도착해요', text: '고아에서 온 구원 함대 140명이 점선 뱃길을 따라 예수 요새로 들어와요. 오는 길의 적 함대와 맞부딪치면 줄어드니, 뱃길 근처 적을 미리 걷어 내세요.' }]) },
-      tour: [{ key: 'relief', f: [440, 360, 70], title: '구원 함대', text: '150초쯤 고아에서 구원 함대 140명이 동쪽 바깥에서 이 뱃길로 들어와 예수 요새에 닿아요. 그때까지 요새를 지키세요.' }],
+          .concat([
+          { at: 80, do: 'sail', route: [[520, 290], [440, 360]], to: 'T', amt: 50, name: '구원 함대 1/4', card: 'relief', title: '구원 함대가 오기 시작해요', text: '고아에서 온 구원 함대가 80초부터 30초마다 50명씩, 모두 네 번 점선 뱃길을 따라 예수 요새로 들어와요. 오는 길의 적 함대와 맞부딪치면 줄어드니, 뱃길 근처 포위 함대를 걷어 내세요.' },
+          { at: 110, do: 'sail', route: [[520, 290], [440, 360]], to: 'T', amt: 50, name: '구원 함대 2/4', say: '구원 함대 2/4가 동쪽 뱃길로 들어와요 (+50)' },
+          { at: 140, do: 'sail', route: [[520, 290], [440, 360]], to: 'T', amt: 50, name: '구원 함대 3/4', say: '구원 함대 3/4가 동쪽 뱃길로 들어와요 (+50)' },
+          { at: 170, do: 'sail', route: [[520, 290], [440, 360]], to: 'T', amt: 50, name: '구원 함대 4/4', say: '구원 함대 4/4가 동쪽 뱃길로 들어와요 (+50)' }]) },
+      tour: [{ key: 'relief', f: [440, 360, 70], title: '구원 함대', text: '80초부터 30초마다 고아의 구원 함대 50명씩, 모두 네 번 동쪽 바깥에서 이 뱃길로 들어와 예수 요새에 닿아요. 뱃길 근처 적을 걷어 내면 더 많이 닿아요.' }],
       nodes: [
         [325, 420, 'port', 1, 3, 40, 'fort', 'T', '예수 요새'],
         [225, 445, 'castle', 1, 2, 22, 'base', 'H', '몸바사 시가'],
@@ -4611,7 +4616,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       hints: [
         { t: '예수 요새를 4분 지키거나 포위군을 모두 몰아내면 승리, 요새를 잃으면 바로 실패예요.', focus: 'T', until: 'secs:10' },
         { t: '시가와 마을에서 요새로 보급선을 까세요. 병력을 한 번에 많이 빼면 적이 빈 거점을 노려요.', until: 'route' },
-        { t: '150초쯤 구원 함대 140명이 동쪽 뱃길로 들어와요. 그때 반격하세요.', until: 'never' },
+        { t: '80초부터 30초마다 구원 함대 50명씩 네 번 들어와요. 모이면 반격하세요.', until: 'never' },
       ] },
     { id: 'ar14', name: '수에즈와 바브엘만데브', place: '홍해', race: 'lantern', foes: [[2, 'corsair', 1, 5], [3, 'merchant', 1, 5]],
       brief: '지중해와 홍해 사이엔 모래땅이 가로막고 있었다. 1869년 운하가 뚫리자 두 바다가 이어졌다. 운하를 열고 홍해를 달려 남쪽 끝 해협의 요새를 차지해 지켜라.',
