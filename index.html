@@ -3470,7 +3470,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v84', DEV_VER = BUILD;
+  const BUILD = 'v85', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -3567,18 +3567,20 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       if (state === 'play') { pause(); return true; }
       return false;
     };
-    // a cushion of spare history entries, topped up after every press, so quick repeated presses never run out of history and close the app
-    const CUSHION = 6; let have = 0, lastStep = 0, leaving = false;
-    const refill = () => { try { while (have < CUSHION) { history.pushState({ isl: have + 1 }, ''); have++; } } catch (e) {} };
-    try { history.replaceState({ isl: 0 }, ''); } catch (e) {} refill();
+    // a cushion of spare history entries so quick repeated presses never run out and close the app.
+    // Chrome lets the back button skip any entry a page added without a tap, so the cushion is topped up only from taps and key presses
+    const CUSHION = 8; let have = 0, lastStep = 0, leaving = false;
+    const refill = () => { if (leaving) return; try { while (have < CUSHION) { history.pushState({ isl: have + 1 }, ''); have++; } } catch (e) {} };
+    try { history.replaceState({ isl: 0 }, ''); } catch (e) {}
+    for (const ev of ['click', 'touchend', 'pointerup', 'keydown']) addEventListener(ev, refill, true);
     addEventListener('popstate', () => {
       if (leaving) return;
       have = Math.max(0, have - 1);
       const now = Date.now();
-      if (step()) { armed = 0; lastStep = now; refill(); return; }
-      if (now - lastStep < 1200) { refill(); return; }   // just arrived at the title by pressing back: ignore the extra quick presses
-      if (now - armed < 2000) { leaving = true; try { history.go(-(have + 1)); } catch (e) {} return; }   // second press at the title: leave
-      armed = now; toast('뒤로 버튼을 한 번 더 누르면 나가요'); refill();
+      if (step()) { armed = 0; lastStep = now; return; }
+      if (now - lastStep < 1200) return;   // just arrived at the title by pressing back: ignore the extra quick presses
+      if (now - armed < 2000 || !have) { leaving = true; try { history.go(-(have + 1)); } catch (e) {} return; }   // second press at the title: leave
+      armed = now; toast('뒤로 버튼을 한 번 더 누르면 나가요');
     });
   }
   $('setBack').addEventListener('click', () => { $('setOv').hidden = true; xferMode = null; $('xferBox').hidden = $('xferRow').hidden = true; });
