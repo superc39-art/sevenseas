@@ -7640,4 +7640,4 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     timer = setTimeout(bye, 3300); }
 })();
 </script>
-<script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').then(r=>r.update()).catch(()=>{}));</script></body></html>
+<script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{}));</script></body></html>
