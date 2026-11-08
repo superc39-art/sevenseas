@@ -3494,7 +3494,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v87', DEV_VER = BUILD;
+  const BUILD = 'v88', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -5950,6 +5950,16 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       g.fillStyle = sail; g.beginPath(); g.moveTo(0.46 * u, -0.2 * u); g.lineTo(-0.36 * u, -0.92 * u); g.quadraticCurveTo(-0.3 * u, -0.5 * u, -0.3 * u, -0.18 * u); g.closePath(); g.fill();
       g.strokeStyle = dark; g.lineWidth = Math.max(0.8, u * 0.02); g.beginPath(); g.moveTo(0.5 * u, -0.17 * u); g.lineTo(-0.4 * u, -0.96 * u); g.stroke();
       g.fillStyle = c; P([[-0.4, -0.96], [-0.2, -0.93], [-0.36, -0.88]]);
+    } else if (HRID === 'europe') {
+      // a longship: low clinker hull curving up to a dragon prow and a tail at the stern, a row of shields, one striped square sail
+      g.fillStyle = wood; g.beginPath(); g.moveTo(-0.62 * u, -0.34 * u); g.quadraticCurveTo(-0.6 * u, -0.06 * u, -0.38 * u, 0.02 * u); g.lineTo(0.38 * u, 0.02 * u); g.quadraticCurveTo(0.6 * u, -0.06 * u, 0.6 * u, -0.38 * u);
+      g.lineTo(0.52 * u, -0.36 * u); g.quadraticCurveTo(0.5 * u, -0.14 * u, 0.36 * u, -0.12 * u); g.lineTo(-0.36 * u, -0.12 * u); g.quadraticCurveTo(-0.52 * u, -0.14 * u, -0.55 * u, -0.32 * u); g.closePath(); g.fill();
+      g.fillStyle = dark; g.beginPath(); g.arc(0.6 * u, -0.41 * u, 0.06 * u, 0, 6.283); g.fill(); g.fillStyle = c; g.beginPath(); g.arc(0.63 * u, -0.43 * u, 0.018 * u, 0, 6.283); g.fill();   // the dragon's head
+      for (let k = 0; k < 7; k++) { const sx = (-0.33 + k * 0.11) * u; g.fillStyle = k % 2 ? c : '#e8dcc0'; g.beginPath(); g.arc(sx, -0.1 * u, 0.045 * u, 0, 6.283); g.fill(); g.strokeStyle = dark; g.lineWidth = Math.max(0.6, u * 0.01); g.stroke(); }
+      mast(0, -0.98);
+      g.fillStyle = sail; g.beginPath(); g.moveTo(-0.3 * u, -0.9 * u); g.lineTo(0.3 * u, -0.9 * u); g.quadraticCurveTo(0.36 * u, -0.56 * u, 0.3 * u, -0.24 * u); g.lineTo(-0.3 * u, -0.24 * u); g.quadraticCurveTo(-0.24 * u, -0.56 * u, -0.3 * u, -0.9 * u); g.fill();
+      g.fillStyle = '#b8402e'; for (let k = 0; k < 3; k++) { const x = (-0.24 + k * 0.2) * u; g.beginPath(); g.moveTo(x, -0.9 * u); g.lineTo(x + 0.09 * u, -0.9 * u); g.quadraticCurveTo(x + 0.12 * u, -0.56 * u, x + 0.09 * u, -0.24 * u); g.lineTo(x, -0.24 * u); g.quadraticCurveTo(x + 0.03 * u, -0.56 * u, x, -0.9 * u); g.fill(); }
+      g.fillStyle = c; P([[0, -0.98], [0.18, -0.95], [0, -0.92]]);
     } else if (HRID === 'africa') {
       // a felucca: slim low hull and a towering triangular sail on a long yard
       g.fillStyle = wood; g.beginPath(); g.moveTo(-0.46 * u, -0.1 * u); g.lineTo(0.56 * u, -0.12 * u); g.quadraticCurveTo(0.36 * u, 0.03 * u, 0.1 * u, 0.03 * u); g.lineTo(-0.4 * u, 0.02 * u); g.closePath(); g.fill();
@@ -6048,6 +6058,13 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     } else if (id === 'pacific' || id === 'carib') {
       if (id === 'pacific') { g.fillStyle = col; g.beginPath(); g.moveTo(w * 0.45, hz); g.lineTo(w * 0.6, hz - 54 * S); g.lineTo(w * 0.66, hz - 54 * S); g.lineTo(w * 0.82, hz); g.closePath(); g.fill(); }
       g.fillStyle = col; hill(4 * S, 0.02, 0.3, 1 * S); g.strokeStyle = col; for (const x of [0.14, 0.19, 0.88]) palm(w * x, hz - 2 * S, S);
+    } else if (id === 'europe') {
+      // a fjord: steep dark walls on both sides with snow on the tops, a pine shore, a far ridge in between
+      g.fillStyle = mix(col, HT.skyHor, 0.45); hill(14 * S, 0.008, 1.3, 3 * S);
+      const wall = (x0, x1, peak, top) => { g.fillStyle = mix(col, '#1c2a2a', 0.35); g.beginPath(); g.moveTo(x0, hz); g.lineTo(x0 + (peak - x0) * 0.35, hz - top * 0.55); g.lineTo(peak, hz - top); g.lineTo(peak + (x1 - peak) * 0.5, hz - top * 0.62); g.lineTo(x1, hz); g.closePath(); g.fill();
+        g.fillStyle = mix('#ffffff', HT.skyHor, 0.15); g.beginPath(); g.moveTo(peak - top * 0.28, hz - top * 0.72); g.lineTo(peak, hz - top); g.lineTo(peak + top * 0.32, hz - top * 0.7); g.lineTo(peak + top * 0.12, hz - top * 0.78); g.lineTo(peak - top * 0.08, hz - top * 0.7); g.closePath(); g.fill(); };
+      wall(-w * 0.05, w * 0.42, w * 0.1, 92 * S); wall(w * 0.6, w * 1.08, w * 0.88, 104 * S); wall(w * 0.3, w * 0.72, w * 0.52, 46 * S);
+      g.fillStyle = mix(col, '#0e1a16', 0.55); for (const x of [0.03, 0.07, 0.11, 0.16, 0.8, 0.85, 0.9, 0.95]) tri(w * x, hz - 2 * S, 6 * S);
     } else if (id === 'arctic' || id === 'antarctic') {
       g.fillStyle = mix('#ffffff', HT.skyHor, 0.25); g.fillRect(0, hz - 14 * S, w * 0.5, 14 * S);
       for (const [x, s2] of [[0.62, 1], [0.8, 0.6]]) { g.beginPath(); g.moveTo(w * x - 26 * S * s2, hz); g.lineTo(w * x - 10 * S * s2, hz - 30 * S * s2); g.lineTo(w * x + 6 * S * s2, hz - 22 * S * s2); g.lineTo(w * x + 24 * S * s2, hz); g.closePath(); g.fill(); }
@@ -6066,7 +6083,8 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   function paintScene(g, q, qc, w, h, rid, t, u) {
     HT = THEMES[rid]; HRID = rid;
     const hz = h * 0.36, S = Math.min(w / 380, h / 360), e = Math.sin(u * 6.283);
-    const day = smooth(-0.05, 0.4, e), dark = smooth(0.12, -0.22, e), twi = Math.exp(-((e / 0.17) ** 2));
+    let day = smooth(-0.05, 0.4, e), dark = smooth(0.12, -0.22, e), twi = Math.exp(-((e / 0.17) ** 2));
+    if (rid === 'europe') { day *= 0.4; dark = Math.max(dark, 0.55); twi = Math.max(twi, 0.25); }   // the far north: a long dusk under the northern lights
     HDARK = dark;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     // sky
@@ -6075,6 +6093,14 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     const sky = g.createLinearGradient(0, 0, 0, hz); sky.addColorStop(0, top); sky.addColorStop(1, hor);
     g.fillStyle = sky; g.fillRect(0, 0, w, hz + 1);
     if (dark > 0.02) for (const s of HSTARS) { g.fillStyle = `rgba(221,232,239,${dark * (0.2 + 0.5 * Math.max(0, Math.sin(t * 1.1 + s.p)))})`; g.fillRect(s.x * w, s.y * h, s.s, s.s); }
+    if (rid === 'europe') {   // the northern lights: slow curtains of green with a rose hem, waving across the sky
+      const A = 0.45 + 0.55 * dark; g.save(); g.globalCompositeOperation = 'lighter';
+      for (let b = 0; b < 3; b++) { const base = hz * (0.18 + b * 0.14), len = hz * (0.28 - b * 0.05), ph = b * 1.7;
+        for (let x = -10; x <= w + 10; x += 4) { const y = base + Math.sin(x * 0.012 + t * 0.35 + ph) * hz * 0.08 + Math.sin(x * 0.031 - t * 0.6 + ph) * hz * 0.03;
+          const k = A * (0.35 + 0.65 * Math.max(0, Math.sin(x * 0.02 + t * 0.5 + ph * 2))) * (b === 1 ? 1 : 0.7);
+          const gr = g.createLinearGradient(0, y - len * 0.15, 0, y + len); gr.addColorStop(0, 'rgba(255,120,190,0)'); gr.addColorStop(0.12, `rgba(255,120,190,${0.18 * k})`); gr.addColorStop(0.3, `rgba(90,255,170,${0.32 * k})`); gr.addColorStop(1, 'rgba(60,220,160,0)');
+          g.fillStyle = gr; g.fillRect(x, y - len * 0.15, 4.5, len * 1.15); } }
+      g.restore(); }
     // sun by day, moon by night, both rising on the left and setting on the right
     const arc = v => ({ x: w * (0.06 + 0.88 * v), y: hz + 8 * S - Math.sin(v * Math.PI) * hz * 0.82 });
     const sunUp = u < 0.5, sp = arc(sunUp ? u / 0.5 : (u - 0.5) / 0.5), br = Math.min(w, h) * 0.06;
