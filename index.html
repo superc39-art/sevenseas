@@ -204,12 +204,27 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
 .chart-top #chartStory { margin-left: 0; padding: 6px 10px; }
 .chart-top span { margin-left: auto; }
 /* mission cards under the chart: about three visible, scroll to pick; the centred card's flag lights up on the map */
-.chart-list { position: absolute; left: 0; right: 0; bottom: 0; height: 214px; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory;
-  display: grid; gap: 6px; align-content: start; padding: 10px 12px 12px; box-sizing: border-box; background: rgba(8,21,31,.95); border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; }
+.chart-sheet { position: absolute; left: 0; right: 0; bottom: 0; height: var(--csh, clamp(260px, 40vh, 440px)); display: flex; flex-direction: column; box-sizing: border-box;
+  padding: 0 10px max(10px, env(safe-area-inset-bottom, 0px)); background: rgba(8,18,26,.97); border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.45); }
+.chart-sheet.drag { transition: none; } .chart-sheet:not(.drag) { transition: height .25s ease; }
+.cs-handle { flex: none; height: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: ns-resize; touch-action: none; }
+.cs-handle i { width: 44px; height: 5px; border-radius: 3px; background: #5a6b78; }
+.cs-handle span { font-size: 10.5px; color: var(--mist); opacity: .8; }
+/* the spyglass lens: a brass-rimmed glass the mission cards roll through; the middle card is magnified, the outer ones bend away */
+.lens { position: relative; flex: 1; min-height: 0; border-radius: 22px; overflow: hidden; width: 100%; max-width: 560px; margin: 0 auto;
+  background: radial-gradient(120% 70% at 50% 50%, #142634 0%, #0c1822 70%, #070f16 100%);
+  box-shadow: inset 0 0 0 3px #b8893c, inset 0 0 0 5px #6b4b1c, inset 0 0 0 6px rgba(227,189,109,.33); }
+.lens-glass { position: absolute; inset: 0; pointer-events: none; border-radius: 22px; z-index: 2;
+  background: linear-gradient(180deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,0) 20%, rgba(0,0,0,0) 80%, rgba(0,0,0,.62) 100%), linear-gradient(115deg, rgba(255,255,255,0) 32%, rgba(255,255,255,.07) 38%, rgba(255,255,255,0) 44%);
+  box-shadow: inset 0 0 0 3px #b8893c, inset 0 0 0 5px #6b4b1c, inset 0 0 0 6px rgba(227,189,109,.33), inset 0 0 34px 10px rgba(0,0,0,.7), inset 3px 0 4px rgba(255,107,107,.12), inset -3px 0 4px rgba(107,200,255,.12); }
+.chart-list { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; scrollbar-width: none;
+  display: grid; gap: 6px; align-content: start; padding: 0 16px; box-sizing: border-box; }
+.chart-list::-webkit-scrollbar { display: none; }
+.chart-list .mrow { will-change: transform; transform-origin: 50% 50%; }
 .chart-list .mrow .nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chart-list .mrow { scroll-snap-align: center; background: rgba(8,21,31,.88); min-height: 54px; }
 .chart-list .mrow.focus { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber) inset; }
-.chart-list .pad { height: 62px; }
+.chart-list .pad { height: 62px; scroll-snap-align: none; }
 .camp-top b { font-family: var(--f-display); font-weight: 400; font-size: 22px; color: var(--amber); }
 .camp-top span { margin-left: auto; font-size: 13px; color: var(--mist); font-variant-numeric: tabular-nums; }
 .sheet {
@@ -400,7 +415,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
 .wrap:not(.in-game) .overlay:not(.landing):not(.camp):not(.intro) { padding-top: max(20px, env(safe-area-inset-top, 0px)); padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)); }
 .landing .home-body { padding-bottom: max(24px, calc(env(safe-area-inset-bottom, 0px) + 12px)); }
 .tour-card { max-width: 440px; margin-inline: auto; }
-.chart-list > *, .sheet > * { width: 100%; max-width: 560px; justify-self: center; }
+.sheet > * { width: 100%; max-width: 560px; justify-self: center; }
 @media (min-width: 700px) { .panel { max-width: 460px; } }
 /* studio splash */
 .splash { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #fff; cursor: pointer; transition: opacity .6s ease; }
@@ -519,7 +534,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       <div class="sheet" id="sheet"></div>
       <canvas id="chart" hidden></canvas>
       <div class="chart-top" id="chartTop" hidden><button class="ghost" id="chartBack" type="button">← 세계</button><b id="chartName"></b><span id="chartStars"></span><button class="ghost" id="chartStory" type="button" aria-label="지역 이야기 다시 보기">▶</button></div>
-      <div class="chart-list" id="chartList" hidden></div>
+      <div class="chart-sheet" id="chartSheet" hidden><div class="cs-handle" id="csHandle"><i></i><span>끌어서 펼치기</span></div><div class="lens"><div class="chart-list" id="chartList"></div><div class="lens-glass"></div></div></div>
     </div>
 
     <div class="overlay" id="brief" hidden>
@@ -3626,7 +3641,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v90', DEV_VER = BUILD;
+  const BUILD = 'v91', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -7586,7 +7601,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     }
     return { cos, land, edge };
   }
-  const chartView = () => { const r = chartCv.getBoundingClientRect(); return { w: r.width, h: r.height, top: 58, bot: ($('chartList').offsetHeight || 196) - 14 }; };
+  const chartView = () => { const r = chartCv.getBoundingClientRect(); return { w: r.width, h: r.height, top: 58, bot: ($('chartSheet').offsetHeight || 300) - 14 }; };
   function chartFit() {
     // the chart always fills the screen (no empty sea outside it); wide seas pan sideways. Start on the mission you're up to.
     const C = CHARTS[chartKey(chart.r)], v = chartView(), r = chart.r;
@@ -7607,13 +7622,14 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   function openChart(i, fade) {
     const r = typeof i === 'number' ? REGIONS[i] : i; chart.open = true; chart.i = typeof i === 'number' ? i : -1; chart.r = r; chart.t0 = time;
     Object.assign(chart, chartPaths(r));
-    $('sheet').hidden = true; globe.hidden = true; $('chartTop').hidden = false; $('chartList').hidden = false; chartCv.hidden = false;
+    $('sheet').hidden = true; globe.hidden = true; $('chartTop').hidden = false; $('chartSheet').hidden = false; chartCv.hidden = false;
     document.querySelector('#camp .camp-top').hidden = true;
     chartCv.classList.remove('on'); if (fade) requestAnimationFrame(() => chartCv.classList.add('on')); else chartCv.classList.add('on');
     $('chartName').textContent = r.name; $('chartStars').textContent = `★ ${regionStars(r)}/${r.missions.length * 3}`;
     $('chartStory').hidden = !STORY[r.id];
     buildChartList(r);
-    requestAnimationFrame(() => { chartFit(); chartClamp(); scrollToCard(chart.focus, false); });
+    requestAnimationFrame(() => { chartFit(); chartClamp(); lensLayout(); scrollToCard(chart.focus, false); lensPaint(); });
+    chart.loupe = { j: chart.focus, t0: time + 0.7 };
     chartFit(); chartClamp();
   }
   function buildChartList(r) {
@@ -7630,7 +7646,41 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       box.append(b); chart.cards.push(b);
     });
     box.append(el('div', 'pad'));
-    markCard();
+    markCard(); requestAnimationFrame(lensLayout);
+  }
+  // the lens: each card is magnified or bent by how far it sits from the middle of the glass
+  function lensLayout() {
+    const box = $('chartList'); if (!box || !chart.cards) return;
+    const h = box.clientHeight; if (!h) return;
+    const ch = (chart.cards[0] && chart.cards[0].offsetHeight) || 56, padH = Math.max(0, h / 2 - ch / 2);
+    box.querySelectorAll('.pad').forEach(p => { if (Math.abs(p.offsetHeight - padH) > 1) p.style.height = padH + 'px'; });
+    lensPaint();
+  }
+  function lensPaint() {
+    const box = $('chartList'); if (!box || !chart.cards) return;
+    const h = box.clientHeight, mid = box.scrollTop + h / 2, R = Math.max(80, h / 2);
+    for (const c of chart.cards) {
+      const d = Math.max(-1.25, Math.min(1.25, (c.offsetTop + c.offsetHeight / 2 - mid) / R)), a = Math.abs(d);
+      const sc = 1.05 - 0.3 * d * d, ty = -d * a * 14, rx = -d * 30, bl = a > 0.5 ? (a - 0.5) * 2.6 : 0;
+      c.style.transform = `perspective(520px) translateY(${ty.toFixed(1)}px) rotateX(${rx.toFixed(1)}deg) scale(${sc.toFixed(3)})`;
+      c.style.filter = bl > 0.05 ? `blur(${bl.toFixed(2)}px)` : '';
+      c.style.opacity = (1 - 0.42 * Math.min(1, d * d)).toFixed(2);
+    }
+  }
+  let lensRaf = 0;
+  $('chartList').addEventListener('scroll', () => { if (!lensRaf) lensRaf = requestAnimationFrame(() => { lensRaf = 0; lensPaint(); }); }, { passive: true });
+  // pull the sheet up for a bigger lens, down for more map; the map refits around the chosen mission
+  { const hd = $('csHandle'), sh = $('chartSheet'); let dr = null;
+    const refit = () => { const m = chart.r && chart.r.missions[chart.focus]; const k0 = chart.k / (chart.kMin || chart.k); chartFit(); chart.k = chart.kMin * Math.max(1, k0); if (m && m.at) { chart.lon = m.at[0]; chart.lat = m.at[1]; } chartClamp(); lensLayout(); scrollToCard(chart.focus, false); };
+    hd.addEventListener('pointerdown', e => { try { hd.setPointerCapture(e.pointerId); } catch (_) {} dr = { y: e.clientY, h: sh.offsetHeight, moved: false }; sh.classList.add('drag'); });
+    hd.addEventListener('pointermove', e => { if (!dr) return; const dy = e.clientY - dr.y; if (Math.abs(dy) > 4) dr.moved = true;
+      const H = sh.parentElement.clientHeight; sh.style.setProperty('--csh', Math.max(H * 0.26, Math.min(H * 0.72, dr.h - dy)) + 'px'); lensLayout(); });
+    const up = () => { if (!dr) return; const H = sh.parentElement.clientHeight, cur = sh.offsetHeight; sh.classList.remove('drag');
+      const big = dr.moved ? cur > H * 0.5 : cur < H * 0.5; dr = null; feel('tick');
+      sh.style.setProperty('--csh', big ? Math.round(H * 0.64) + 'px' : ''); hd.querySelector('span').textContent = big ? '끌어서 접기' : '끌어서 펼치기';
+      setTimeout(refit, 280); };
+    hd.addEventListener('pointerup', up); hd.addEventListener('pointercancel', up);
+    window.addEventListener('resize', () => { if (chart.open) requestAnimationFrame(lensLayout); });
   }
   function markCard() { (chart.cards || []).forEach((c, j) => c.classList.toggle('focus', j === chart.focus)); }
   function scrollToCard(j, smooth = true) {
@@ -7643,11 +7693,11 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     if (!chart.open || time < (chart.quietScroll || 0)) return;
     const box = $('chartList'), mid = box.scrollTop + box.clientHeight / 2; let best = -1, bd = 1e9;
     (chart.cards || []).forEach((c, j) => { const d = Math.abs(c.offsetTop + c.offsetHeight / 2 - mid); if (d < bd) { bd = d; best = j; } });
-    if (best >= 0 && best !== chart.focus) { chart.focus = best; markCard(); const m = chart.r.missions[best]; if (m.at) chart.glide = { lon: m.at[0], lat: m.at[1] }; }
+    if (best >= 0 && best !== chart.focus) { chart.focus = best; markCard(); const m = chart.r.missions[best]; if (m.at) chart.glide = { lon: m.at[0], lat: m.at[1] }; chart.loupe = { j: best, t0: time + 0.35 }; }
   }, { passive: true });
   function closeChart() {
     chart.open = false; chart.glide = null; chartCv.hidden = true; chartCv.classList.remove('on'); $('chartTop').hidden = true;
-    globe.hidden = false; $('sheet').hidden = false; $('sheet').style.visibility = ''; gs.dive = null; gs.zoom = 1; gs.fade = 0; document.querySelector('#camp .camp-top').hidden = false; $('chartList').hidden = true;
+    globe.hidden = false; $('sheet').hidden = false; $('sheet').style.visibility = ''; gs.dive = null; gs.zoom = 1; gs.fade = 0; document.querySelector('#camp .camp-top').hidden = false; $('chartSheet').hidden = true;
   }
   $('chartBack').addEventListener('click', () => { feel('tick'); if (chart.r === TRAINING) { closeChart(); showHome(); return; } closeChart(); gs.sel = null; renderSheet(); });
   $('chartStory').addEventListener('click', gesture(() => { const r = chart.r; showIntro(r, () => showCamp(r.id)); }));
@@ -7730,6 +7780,25 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     g.beginPath(); g.arc(cx, cy, 16, 0, 6.283); g.stroke();
     for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 - Math.PI / 2, L = q === 0 ? 20 : 14; g.beginPath(); g.moveTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); g.lineTo(cx + Math.cos(a + 1.3) * 4, cy + Math.sin(a + 1.3) * 4); g.lineTo(cx + Math.cos(a - 1.3) * 4, cy + Math.sin(a - 1.3) * 4); g.closePath(); q === 0 ? g.fill() : g.stroke(); }
     g.font = '700 9px system-ui'; g.textAlign = 'center'; g.fillText('N', cx, cy - 23);
+    // brass loupe: when you pick a mission it swings over its flag for a moment, magnified
+    const L = chart.loupe, lp = L && P.find(p => p.j === L.j);
+    if (L && lp && time > L.t0) { const age = time - L.t0, dur = 1.9;
+      if (age > dur) chart.loupe = null;
+      else { const a = Math.min(1, age / 0.22, (dur - age) / 0.35), R = 58 * (0.85 + 0.15 * a), Z = 2, x = lp.x, y = Math.max(v.top + R + 6, lp.y);
+        g.save(); g.globalAlpha = a; g.beginPath(); g.arc(x, y, R, 0, 6.283); g.clip();
+        g.setTransform(1, 0, 0, 1, 0, 0); const S = dpr;
+        g.drawImage(chartCv, (lp.x - R / Z) * S, (lp.y - R / Z) * S, (2 * R / Z) * S, (2 * R / Z) * S, (x - R) * S, (y - R) * S, 2 * R * S, 2 * R * S);
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const ig = g.createRadialGradient(x, y, R * 0.5, x, y, R); ig.addColorStop(0, 'rgba(0,0,0,0)'); ig.addColorStop(1, 'rgba(0,0,0,0.45)'); g.fillStyle = ig; g.fillRect(x - R, y - R, 2 * R, 2 * R);
+        const hg = g.createRadialGradient(x - R * 0.35, y - R * 0.45, 0, x - R * 0.35, y - R * 0.45, R * 0.5); hg.addColorStop(0, 'rgba(255,255,255,0.28)'); hg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = hg; g.fillRect(x - R, y - R, 2 * R, 2 * R);
+        g.restore(); g.save(); g.globalAlpha = a;
+        const hx = x + Math.cos(-0.8) * R, hy = y + Math.sin(-0.8) * R;
+        g.lineCap = 'round'; g.strokeStyle = '#6b4b1c'; g.lineWidth = 12; g.beginPath(); g.moveTo(hx, hy); g.lineTo(hx + 30, hy - 30); g.stroke();
+        g.strokeStyle = '#d9a756'; g.lineWidth = 7; g.beginPath(); g.moveTo(hx + 2, hy - 2); g.lineTo(hx + 29, hy - 29); g.stroke();
+        g.strokeStyle = '#6b4b1c'; g.lineWidth = 7; g.beginPath(); g.arc(x, y, R + 2, 0, 6.283); g.stroke();
+        g.strokeStyle = '#c8963f'; g.lineWidth = 4; g.beginPath(); g.arc(x, y, R + 1, 0, 6.283); g.stroke();
+        g.strokeStyle = 'rgba(255,230,170,0.6)'; g.lineWidth = 1; g.beginPath(); g.arc(x, y, R - 1.5, 0, 6.283); g.stroke();
+        g.restore(); } }
     // edge vignette
     const vg = g.createRadialGradient(v.w / 2, v.h / 2, Math.min(v.w, v.h) * 0.35, v.w / 2, v.h / 2, Math.max(v.w, v.h) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.38)'); g.fillStyle = vg; g.fillRect(0, 0, v.w, v.h);
   }
