@@ -3641,7 +3641,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v91', DEV_VER = BUILD;
+  const BUILD = 'v92', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -6566,6 +6566,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       : g.type === 'loot' ? `${fmt(g.secs)} 안에 ${g.noun || '보물선단'}${eul(g.noun || '보물선단')} ${g.n}번 이상 ${g.verb || '가로채'}라`
       : g.type === 'sack' ? `${fmt(g.secs)} 안에 ${g.noun || '항구'} ${g.n}곳을 약탈하라`
       : g.type === 'reach' ? `적보다 먼저 ${g.tags.map(lab).join(', ')}에 닿아라`
+      : g.type === 'tow' ? `${lab(m.rules.tow.tag)}${eul(lab(m.rules.tow.tag))} 나포해 본진까지 끌고 와라`
       : g.type === 'race' ? `${lab(g.tags[0])}${eul(lab(g.tags[0]))} 먼저 차지해 ${g.secs}초 동안 지켜라 (경쟁 선단이 먼저 ${g.secs}초 지키면 실패)`
       : `전체 병력의 ${Math.round(g.p * 100)}%를 차지하라`;
     if (g.first) t = `${g.first.label} ${g.first.n}명을 채운 뒤 ${t}`;
@@ -7629,7 +7630,6 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     $('chartStory').hidden = !STORY[r.id];
     buildChartList(r);
     requestAnimationFrame(() => { chartFit(); chartClamp(); lensLayout(); scrollToCard(chart.focus, false); lensPaint(); });
-    chart.loupe = { j: chart.focus, t0: time + 0.7 };
     chartFit(); chartClamp();
   }
   function buildChartList(r) {
@@ -7693,7 +7693,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     if (!chart.open || time < (chart.quietScroll || 0)) return;
     const box = $('chartList'), mid = box.scrollTop + box.clientHeight / 2; let best = -1, bd = 1e9;
     (chart.cards || []).forEach((c, j) => { const d = Math.abs(c.offsetTop + c.offsetHeight / 2 - mid); if (d < bd) { bd = d; best = j; } });
-    if (best >= 0 && best !== chart.focus) { chart.focus = best; markCard(); const m = chart.r.missions[best]; if (m.at) chart.glide = { lon: m.at[0], lat: m.at[1] }; chart.loupe = { j: best, t0: time + 0.35 }; }
+    if (best >= 0 && best !== chart.focus) { chart.focus = best; markCard(); const m = chart.r.missions[best]; if (m.at) chart.glide = { lon: m.at[0], lat: m.at[1] }; }
   }, { passive: true });
   function closeChart() {
     chart.open = false; chart.glide = null; chartCv.hidden = true; chartCv.classList.remove('on'); $('chartTop').hidden = true;
@@ -7701,10 +7701,48 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   }
   $('chartBack').addEventListener('click', () => { feel('tick'); if (chart.r === TRAINING) { closeChart(); showHome(); return; } closeChart(); gs.sel = null; renderSheet(); });
   $('chartStory').addEventListener('click', gesture(() => { const r = chart.r; showIntro(r, () => showCamp(r.id)); }));
+  // a mission's real battle map, built once with the battle generator and kept as a small picture for the spyglass
+  const thumbCache = {};
+  function missionThumb(m) {
+    if (thumbCache[m.id]) return thumbCache[m.id];
+    const keep = { mission, RULES, TH, sceneId, TOD, GW, GH, WW, WH, mask, iceMask, nodes, distSea, distLand, authored, glints };
+    const lk = document.createElement('canvas'); lk.width = landCv.width; lk.height = landCv.height; if (lk.width) lk.getContext('2d').drawImage(landCv, 0, 0);
+    let out = null;
+    try {
+      mission = m; RULES = JSON.parse(JSON.stringify(m.rules || {})); setScene(regionOf(m).id, m.tod);
+      if (m.gen) genMission(m); else genScenario(m);
+      edgeFlags(); paintLand();
+      const S = 0.9, cv = document.createElement('canvas'); cv.width = Math.round(WW * S); cv.height = Math.round(WH * S); const c = cv.getContext('2d'); c.scale(S, S);
+      const sg = c.createLinearGradient(0, 0, 0, WH); sg.addColorStop(0, TH.sea[0]); sg.addColorStop(1, TH.sea[1]); c.fillStyle = sg; c.fillRect(0, 0, WW, WH);
+      c.drawImage(landCv, 0, 0, WW, WH);
+      const R0 = RULES;
+      if (R0.shoal) for (const [x, y, r] of R0.shoal.zone) { c.fillStyle = 'rgba(226,200,150,0.4)'; c.beginPath(); c.arc(x, y, r, 0, 6.283); c.fill(); }
+      if (R0.crowd) for (const [x, y, r] of R0.crowd.zone) { c.setLineDash([6, 6]); c.strokeStyle = 'rgba(200,230,245,0.7)'; c.lineWidth = 3; c.beginPath(); c.arc(x, y, r, 0, 6.283); c.stroke(); c.setLineDash([]); }
+      for (const gt of R0.gates || []) { const [x1, y1, x2, y2] = gt.line; c.strokeStyle = '#c9b48a'; c.lineWidth = 5; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); c.setLineDash([]); }
+      if (R0.tow) { c.strokeStyle = 'rgba(255,210,122,0.8)'; c.lineWidth = 4; c.setLineDash([10, 8]); c.beginPath(); const n0 = nodes.find(n => n.tag === R0.tow.tag); if (n0) c.moveTo(n0.x, n0.y); R0.tow.wps.forEach(([x, y]) => c.lineTo(x, y)); c.stroke(); c.setLineDash([]); }
+      if (R0.vasa) { c.strokeStyle = 'rgba(255,210,122,0.8)'; c.lineWidth = 4; c.setLineDash([10, 8]); c.beginPath(); R0.vasa.wps.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.stroke(); c.setLineDash([]); }
+      for (const n of nodes) {
+        const r = 11 + (n.size || 1) * 4, col = n.owner ? TEAM[n.owner].c : '#7f97a6';
+        c.fillStyle = 'rgba(0,0,0,0.4)'; c.beginPath(); c.arc(n.x + 2, n.y + 3, r, 0, 6.283); c.fill();
+        c.fillStyle = n.owner ? mix(col, '#000000', 0.35) : '#2a3a46'; c.strokeStyle = col; c.lineWidth = 4; c.beginPath(); c.arc(n.x, n.y, r, 0, 6.283); c.fill(); c.stroke();
+        c.fillStyle = '#ffffff'; c.font = `700 ${Math.round(r * 0.95)}px system-ui`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(Math.round(n.count)), n.x, n.y + 1);
+      }
+      const ym = (m.brief || '').match(/(기원전 )?(\d{2,4})년/), yr = ym ? (ym[1] ? '기원전 ' : '') + ym[2] : '';
+      let cs = []; try { cs = mechCards(m).map(c => (c.title || '').trim()).filter(t => t && t.length <= 12 && t !== '빈틈을 노리는 적'); } catch (e) {}
+      const lr = m.learn && m.learn[0] && m.learn[0].includes(':') ? m.learn[0].split(':')[0].trim() : '';
+      let mech = cs.length ? cs.slice(0, 2).join(' · ') : lr || m.place || '';
+      if (mech.length > 18) mech = cs[0] || lr || m.place;
+      out = { cv, ww: cv.width, wh: cv.height, year: yr, cap: mech.length > 18 ? mech.slice(0, 17) + '…' : mech };
+    } finally {
+      ({ mission, RULES, TH, sceneId, TOD, GW, GH, WW, WH, mask, iceMask, nodes, distSea, distLand, authored, glints } = keep);
+      lctx.setTransform(1, 0, 0, 1, 0, 0); landCv.width = lk.width; landCv.height = lk.height; if (lk.width) lctx.drawImage(lk, 0, 0);
+    }
+    thumbCache[m.id] = out; return out;
+  }
   function drawChart() {
     const rc = chartCv.getBoundingClientRect(); if (!rc.width) return;
     const W2 = Math.round(rc.width * dpr), H2 = Math.round(rc.height * dpr); if (chartCv.width !== W2 || chartCv.height !== H2) { chartCv.width = W2; chartCv.height = H2; chartFit(); chartClamp(); }
-    if (chart.glide && !chart.drag) { const G = chart.glide; chart.lon += (G.lon - chart.lon) * 0.14; chart.lat += (G.lat - chart.lat) * 0.14; chartClamp(); if (Math.abs(G.lon - chart.lon) + Math.abs(G.lat - chart.lat) < 0.01) chart.glide = null; }
+    if (chart.glide && !chart.drag) { const G = chart.glide, l0 = chart.lon, a0 = chart.lat; chart.lon += (G.lon - chart.lon) * 0.14; chart.lat += (G.lat - chart.lat) * 0.14; chartClamp(); if (Math.abs(G.lon - chart.lon) + Math.abs(G.lat - chart.lat) < 0.01 || Math.abs(chart.lon - l0) + Math.abs(chart.lat - a0) < 0.0004) chart.glide = null; }   // stop when there, or when the chart edge holds it back
     const g = chx, v = chartView(), r = chart.r, T = THEMES[r.theme || r.id] || THEMES.asia, K = chart.k, cos = chart.cos;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     // sea: the region's water, darker toward the edges like an old chart
@@ -7780,25 +7818,38 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     g.beginPath(); g.arc(cx, cy, 16, 0, 6.283); g.stroke();
     for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 - Math.PI / 2, L = q === 0 ? 20 : 14; g.beginPath(); g.moveTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); g.lineTo(cx + Math.cos(a + 1.3) * 4, cy + Math.sin(a + 1.3) * 4); g.lineTo(cx + Math.cos(a - 1.3) * 4, cy + Math.sin(a - 1.3) * 4); g.closePath(); q === 0 ? g.fill() : g.stroke(); }
     g.font = '700 9px system-ui'; g.textAlign = 'center'; g.fillText('N', cx, cy - 23);
-    // brass loupe: when you pick a mission it swings over its flag for a moment, magnified
-    const L = chart.loupe, lp = L && P.find(p => p.j === L.j);
-    if (L && lp && time > L.t0) { const age = time - L.t0, dur = 1.9;
-      if (age > dur) chart.loupe = null;
-      else { const a = Math.min(1, age / 0.22, (dur - age) / 0.35), R = 58 * (0.85 + 0.15 * a), Z = 2, x = lp.x, y = Math.max(v.top + R + 6, lp.y);
-        g.save(); g.globalAlpha = a; g.beginPath(); g.arc(x, y, R, 0, 6.283); g.clip();
-        g.setTransform(1, 0, 0, 1, 0, 0); const S = dpr;
-        g.drawImage(chartCv, (lp.x - R / Z) * S, (lp.y - R / Z) * S, (2 * R / Z) * S, (2 * R / Z) * S, (x - R) * S, (y - R) * S, 2 * R * S, 2 * R * S);
-        g.setTransform(dpr, 0, 0, dpr, 0, 0);
-        const ig = g.createRadialGradient(x, y, R * 0.5, x, y, R); ig.addColorStop(0, 'rgba(0,0,0,0)'); ig.addColorStop(1, 'rgba(0,0,0,0.45)'); g.fillStyle = ig; g.fillRect(x - R, y - R, 2 * R, 2 * R);
-        const hg = g.createRadialGradient(x - R * 0.35, y - R * 0.45, 0, x - R * 0.35, y - R * 0.45, R * 0.5); hg.addColorStop(0, 'rgba(255,255,255,0.28)'); hg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = hg; g.fillRect(x - R, y - R, 2 * R, 2 * R);
-        g.restore(); g.save(); g.globalAlpha = a;
-        const hx = x + Math.cos(-0.8) * R, hy = y + Math.sin(-0.8) * R;
-        g.lineCap = 'round'; g.strokeStyle = '#6b4b1c'; g.lineWidth = 12; g.beginPath(); g.moveTo(hx, hy); g.lineTo(hx + 30, hy - 30); g.stroke();
-        g.strokeStyle = '#d9a756'; g.lineWidth = 7; g.beginPath(); g.moveTo(hx + 2, hy - 2); g.lineTo(hx + 29, hy - 29); g.stroke();
-        g.strokeStyle = '#6b4b1c'; g.lineWidth = 7; g.beginPath(); g.arc(x, y, R + 2, 0, 6.283); g.stroke();
-        g.strokeStyle = '#c8963f'; g.lineWidth = 4; g.beginPath(); g.arc(x, y, R + 1, 0, 6.283); g.stroke();
-        g.strokeStyle = 'rgba(255,230,170,0.6)'; g.lineWidth = 1; g.beginPath(); g.arc(x, y, R - 1.5, 0, 6.283); g.stroke();
-        g.restore(); } }
+    // spyglass: the chosen mission's real battle map, seen through a brass lens above its flag (tap it to open the briefing)
+    chart.lpHit = null;
+    { const fp = P.find(p => p.j === chart.focus), fm = fp && fp.m, busy = !!(chart.drag && chart.drag.moved) || !!chart.pinch || !!chart.glide;
+      chart.lpA = Math.max(0, Math.min(1, (chart.lpA || 0) + (busy || !fp ? -0.12 : 0.07)));
+      if (fp && !busy && !thumbCache[fm.id] && !chart.thumbWait) { chart.thumbWait = true; setTimeout(() => { try { missionThumb(fm); } catch (e) { thumbCache[fm.id] = 'x'; } chart.thumbWait = false; }, 30); }
+      const th = fm && thumbCache[fm.id];
+      if (fp && th && th !== 'x' && chart.lpA > 0.02) {
+        const a = chart.lpA, R = Math.min(104, Math.max(72, (v.h - v.top - v.bot) * 0.24)) * (0.9 + 0.1 * a);
+        const room = fp.y - v.top - 2 * R - 34, x = Math.max(R + 10, Math.min(v.w - R - 10, fp.x));
+        const y = room > 4 ? fp.y - R - 30 : Math.min(v.h - v.bot - R - 36, fp.y + R + 30), up = room > 4;
+        g.save(); g.globalAlpha = a;
+        g.strokeStyle = '#8a6526'; g.lineWidth = 5; g.lineCap = 'round'; g.beginPath(); g.moveTo(x + (fp.x - x) * 0.25, up ? y + R : y - R); g.lineTo(fp.x, up ? fp.y - 17 : fp.y + 17); g.stroke();
+        g.save(); g.beginPath(); g.arc(x, y, R, 0, 6.283); g.clip();
+        g.fillStyle = '#132a3a'; g.fillRect(x - R, y - R, 2 * R, 2 * R);
+        const k = (2 * R) / Math.max(th.ww * 0.95, th.wh * 0.72); g.drawImage(th.cv, x - th.ww * k / 2, y - th.wh * k / 2, th.ww * k, th.wh * k);
+        const ig = g.createRadialGradient(x, y, R * 0.55, x, y, R); ig.addColorStop(0, 'rgba(0,0,0,0)'); ig.addColorStop(1, 'rgba(0,0,0,0.5)'); g.fillStyle = ig; g.fillRect(x - R, y - R, 2 * R, 2 * R);
+        const hg = g.createRadialGradient(x - R * 0.4, y - R * 0.5, 0, x - R * 0.4, y - R * 0.5, R * 0.55); hg.addColorStop(0, 'rgba(255,255,255,0.22)'); hg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = hg; g.fillRect(x - R, y - R, 2 * R, 2 * R);
+        g.restore();
+        g.strokeStyle = '#6b4b1c'; g.lineWidth = 8; g.beginPath(); g.arc(x, y, R + 3, 0, 6.283); g.stroke();
+        g.strokeStyle = '#c8963f'; g.lineWidth = 4.5; g.beginPath(); g.arc(x, y, R + 2, 0, 6.283); g.stroke();
+        g.strokeStyle = 'rgba(255,230,170,0.55)'; g.lineWidth = 1; g.beginPath(); g.arc(x, y, R - 1, 0, 6.283); g.stroke();
+        const cap = th.cap; g.font = '600 12px "Gowun Dodum", system-ui'; const yr = th.year ? th.year + '  ' : '';
+        g.font = '14px "Black Han Sans", system-ui'; const yw = yr ? g.measureText(th.year).width + 7 : 0; g.font = '600 12px "Gowun Dodum", system-ui';
+        const tw = yw + g.measureText(cap).width + 26, cy = y + R - 4;
+        g.fillStyle = 'rgba(10,22,32,0.94)'; g.beginPath(); g.roundRect ? g.roundRect(x - tw / 2, cy - 12, tw, 24, 12) : g.rect(x - tw / 2, cy - 12, tw, 24); g.fill();
+        g.strokeStyle = '#c8963f'; g.lineWidth = 1.4; g.stroke();
+        g.textAlign = 'left'; g.textBaseline = 'middle'; let tx = x - tw / 2 + 13;
+        if (th.year) { g.font = '14px "Black Han Sans", system-ui'; g.fillStyle = '#ffd27a'; g.fillText(th.year, tx, cy + 1); tx += yw; }
+        g.font = '600 12px "Gowun Dodum", system-ui'; g.fillStyle = '#f2e6c9'; g.fillText(cap, tx, cy + 1);
+        g.restore();
+        chart.lpHit = { x, y, r: R, j: fp.j, m: fm, open: fp.open };
+      } }
     // edge vignette
     const vg = g.createRadialGradient(v.w / 2, v.h / 2, Math.min(v.w, v.h) * 0.35, v.w / 2, v.h / 2, Math.max(v.w, v.h) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.38)'); g.fillStyle = vg; g.fillRect(0, 0, v.w, v.h);
   }
@@ -7815,6 +7866,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     chart.ptrs.delete(e.pointerId); const d = chart.drag; if (chart.ptrs.size) return; chart.drag = null; chart.pinch = null; if (!d || d.moved) return;
     const rc = chartCv.getBoundingClientRect(), x = e.clientX - rc.left, y = e.clientY - rc.top;
     let best = null, bd = 26; for (const p of chart.pins) { const dd = Math.hypot(p.x - x, p.y - y); if (dd < bd) { bd = dd; best = p; } }
+    if (chart.lpHit && Math.hypot(chart.lpHit.x - x, chart.lpHit.y - y) < chart.lpHit.r) best = { j: chart.lpHit.j, m: chart.lpHit.m, open: chart.lpHit.open };
     if (!best) return;
     chart.focus = best.j; markCard(); scrollToCard(best.j);
     if (!best.open) { feel('deny'); toast('앞 임무를 깨면 열려요'); return; }
