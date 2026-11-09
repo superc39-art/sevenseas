@@ -2560,7 +2560,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     for (let i = 0; i < 4; i++) { const ph = time * 9 + seed + i * 1.7, h = s * (0.8 + 0.4 * Math.sin(ph)), ox = (i - 1.5) * s * 0.45;
       g.fillStyle = i % 2 ? 'rgba(255,200,90,0.9)' : 'rgba(255,110,40,0.9)'; g.beginPath(); g.moveTo(x + ox - s * 0.3, y); g.quadraticCurveTo(x + ox, y - h * 1.6, x + ox + s * 0.3, y); g.closePath(); g.fill(); }
   }
-  function drawFleetShips(g, x, y, ang, amt, rid, c, skin, t, wob = 0) {
+  function drawFleetShipsOld(g, x, y, ang, amt, rid, c, skin, t, wob = 0) {
     const tier = fleetTier(amt), ca = Math.cos(ang), sa = Math.sin(ang);
     const hull = skin ? (SKIN_ARMY[skin] || c) : '#7a5a38', sail = skin ? SAILS[skin] || '#eee' : c, trim = skin ? (skin === 'pirate' ? '#e8e2d0' : c) : '#f3ead6';
     const put = (lx, ly, fn) => { g.save(); g.translate(x + lx * ca - ly * sa, y + lx * sa + ly * ca + Math.sin(t * 3 + lx + wob) * 0.5); g.rotate(ang); fn(); g.restore(); };
@@ -2573,6 +2573,264 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     put(4, 0, () => ship(g, 13, 3, hull, sail, trim, t, true));
     return 19;
   }
+  // ---------- 2026-11 visual overhaul (v98): era hulls in an oblique view, marching troops, embark/land ----------
+  const SV = (() => {
+
+const INK='#1a0f06';
+function shade(c,k){const n=parseInt(c.slice(1),16);let r=n>>16,gg=n>>8&255,b=n&255;const f=v=>Math.max(0,Math.min(255,Math.round(k<0?v*(1+k):v+(255-v)*k)));return '#'+[f(r),f(gg),f(b)].map(v=>v.toString(16).padStart(2,'0')).join('');}
+const WOOD='#9a6a3a',WOODD='#5e3a1c',DECK='#c99a5e',SAIL='#f1e4c4',ROPE='#4a2e16',GOLD='#e2b84f';
+const K=0.78; // squash of the deck seen from above at an angle
+// planform: half width at position u in [-1,1] (stern..bow)
+function hullBody(g,L,prof,h,o){
+ const N=24,top=[],bot=[];for(let i=0;i<=N;i++){const u=-1+2*i/N,w=prof(u)*L;top.push([u*L,-w*K]);bot.push([u*L,w*K]);}
+ // side (near) : bottom edge pushed down by h, tapered at ends
+ g.fillStyle=(CUR.sk&&CUR.sk.side)||o.side||WOOD;g.strokeStyle=INK;g.lineWidth=o.lw;g.beginPath();bot.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));
+ for(let i=N;i>=0;i--){const[x,y]=bot[i],u=-1+2*i/N,hh=h*Math.min(1,(1-Math.abs(u))*4+0.15);g.lineTo(x*0.97,y+hh);}g.closePath();g.fill();g.stroke();
+ g.save();g.clip();if(o.band)o.band(g,bot,h);g.fillStyle='rgba(0,0,0,0.28)';for(let i=0;i<=N;i++){}g.restore();
+ // deck
+ g.fillStyle=(CUR.sk&&CUR.sk.deck)||o.deck||DECK;g.beginPath();top.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));for(let i=N;i>=0;i--)g.lineTo(bot[i][0],bot[i][1]);g.closePath();g.fill();g.strokeStyle=INK;g.stroke();
+ // rail (inner lighter line) + team stripe on near rail
+ g.strokeStyle=o.team;g.lineWidth=Math.max(1,L*0.035);g.beginPath();bot.slice(3,N-2).forEach(([x,y],i)=>i?g.lineTo(x,y+L*0.03):g.moveTo(x,y+L*0.03));g.stroke();
+ g.strokeStyle='rgba(60,30,10,0.35)';g.lineWidth=Math.max(0.5,L*0.012);for(const f of[-0.4,0,0.4]){g.beginPath();top.forEach(([x,y],i)=>{const yy=y+(bot[i][1]-y)*(0.5+f*0.5);i?g.lineTo(x,yy):g.moveTo(x,yy);});g.stroke();}
+ return{top,bot};
+}
+function oars(g,L,body,n,u0,u1,len,t,col='#d9a05a'){g.strokeStyle=col;g.lineCap='round';g.lineWidth=Math.max(1,L*0.03);
+ for(let i=0;i<n;i++){const u=u0+(u1-u0)*i/(n-1),idx=Math.round((u+1)/2*24),sw=Math.sin(t*4+i*0.4)*L*0.06;
+  const[xt,yt]=body.top[idx],[xb,yb]=body.bot[idx];g.globalAlpha=0.75;g.beginPath();g.moveTo(xt,yt);g.lineTo(xt-sw*0.6-L*0.03,yt-len*0.32);g.stroke();g.globalAlpha=1;g.beginPath();g.moveTo(xb,yb+L*0.04);g.lineTo(xb-sw-L*0.07,yb+len);g.stroke();}g.lineCap='butt';}
+function mast(g,x,y0,H,L){g.strokeStyle=ROPE;g.lineWidth=Math.max(0.9,L*0.035);g.beginPath();g.moveTo(x,y0);g.lineTo(x,y0-H);g.stroke();}
+let CUR={team:'#4fa3ff',sk:null,bil:1};const ACC=()=>CUR.sk?CUR.sk.acc:CUR.team;const RB=['#ff5d6c','#ffcf4a','#4fd18b','#4fa3ff','#9d7bff'];
+function fillOf(g,col,x0,x1){if(col!=='rainbow')return col;const gr=g.createLinearGradient(x0,0,x1,0);RB.forEach((c,i)=>{gr.addColorStop(i/5,c);gr.addColorStop((i+1)/5-0.001,c);});return gr;}
+const TINT=()=>shade(CUR.team,0.62);
+const EMB=(g,x,y0,y1,hw)=>{g.fillStyle=shade(ACC(),-0.1);const h=(y1-y0)*0.16;g.fillRect(x-hw*1.3,y0+(y1-y0)*0.62,hw*2.6,h);};
+function sqSail(g,x,y0,y1,hw,L,col=SAIL,deco){if(CUR.sk)col=CUR.sk.sail;else if(col===SAIL)col=TINT();const b=L*0.05*CUR.bil;if(CUR.bil<0.5){y1+=L*0.04;}g.fillStyle=fillOf(g,col,x-hw,x+hw);g.strokeStyle=INK;g.lineWidth=Math.max(0.6,L*0.022);
+ g.beginPath();g.moveTo(x-hw,y0);g.lineTo(x+hw,y0);g.quadraticCurveTo(x+hw+b,(y0+y1)/2,x+hw*0.95,y1);g.quadraticCurveTo(x,y1+b*1.2,x-hw*0.95,y1);g.quadraticCurveTo(x-hw+b*0.5,(y0+y1)/2,x-hw,y0);g.closePath();g.fill();
+ if(deco){g.save();g.clip();deco(g,x,y0,y1,hw);g.restore();}g.stroke();
+ g.fillStyle='rgba(0,0,0,0.08)';g.beginPath();g.moveTo(x-hw,y0);g.lineTo(x-hw*0.3,y0);g.lineTo(x-hw*0.35,y1);g.lineTo(x-hw*0.95,y1);g.closePath();g.fill();
+ g.strokeStyle=ROPE;g.lineWidth=Math.max(0.8,L*0.03);g.beginPath();g.moveTo(x-hw*1.08,y0);g.lineTo(x+hw*1.08,y0);g.stroke();}
+function triSail(g,p,L,col=SAIL,edge){if(CUR.sk)col=CUR.sk.sail;else if(col===SAIL)col=TINT();if(CUR.bil<0.5){p=p.map((q,k)=>k===1?[(p[0][0]+p[2][0])/2,(p[0][1]+p[2][1])/2]:q);}g.fillStyle=fillOf(g,col,Math.min(p[0][0],p[2][0]),Math.max(p[0][0],p[2][0]));g.strokeStyle=INK;g.lineWidth=Math.max(0.6,L*0.022);g.beginPath();g.moveTo(...p[0]);g.quadraticCurveTo(p[1][0],p[1][1],p[2][0],p[2][1]);g.lineTo(...p[3]||p[0]);g.closePath();g.fill();g.stroke();if(edge){g.strokeStyle=ACC();g.lineWidth=Math.max(1.2,L*0.05);g.beginPath();g.moveTo(...p[p.length-2]);g.lineTo(...(p[3]||p[0]));g.stroke();}}
+function flag(g,x,y,L,team,t){g.strokeStyle=ROPE;g.lineWidth=Math.max(0.7,L*0.025);g.beginPath();g.moveTo(x,y);g.lineTo(x,y-L*0.28);g.stroke();const wv=Math.sin(t*6)*L*0.03;g.fillStyle=team;g.strokeStyle=INK;g.lineWidth=Math.max(0.4,L*0.012);g.beginPath();g.moveTo(x,y-L*0.28);g.lineTo(x-L*0.26,y-L*0.25+wv);g.lineTo(x-L*0.19,y-L*0.2);g.lineTo(x-L*0.26,y-L*0.14+wv);g.lineTo(x,y-L*0.17);g.closePath();g.fill();g.stroke();}
+function shadow(g,L,wd){g.fillStyle='rgba(0,0,0,0.3)';g.beginPath();g.ellipse(0,L*0.16,L*1.05,L*wd*1.6,0,0,6.283);g.fill();}
+const P={ // profiles
+ pointy:u=>0.2*Math.pow(1-u*u,0.7),galley:u=>0.15*Math.pow(1-Math.pow(Math.abs(u),2.4),0.6)*(u>0?1-0.35*u:1),dhow:u=>0.24*Math.pow(1-u*u,0.65)*(u>0?1-0.25*u:1),
+ cog:u=>0.34*Math.pow(1-Math.pow(Math.abs(u),3),0.5),box:u=>0.34*Math.pow(1-Math.pow(Math.abs(u),5),0.35),oval:u=>0.3*Math.sqrt(Math.max(0,1-u*u)),
+ ship:u=>0.27*Math.pow(1-Math.pow(Math.abs(u),2.2),0.55)*(u>0?1-0.3*u*u:1),slim:u=>0.2*Math.pow(1-u*u,0.6)*(u>0?1-0.3*u:1),belly:u=>0.4*Math.pow(1-Math.pow(Math.abs(u),2.4),0.5),row:u=>0.27*Math.pow(1-Math.pow(Math.abs(u),2.5),0.5)};
+const SHIPS={
+ longship(g,L,o){const t=o.t,h=L*0.098;shadow(g,L,0.2);const b=hullBody(g,L,P.pointy,h,o);oars(g,L,b,8,-0.7,0.6,L*0.35,t);
+  g.strokeStyle=WOODD;g.lineWidth=Math.max(1.4,L*0.06);g.lineCap='round';g.beginPath();g.moveTo(-L*0.95,0);g.quadraticCurveTo(-L*1.15,-L*0.25,-L*0.98,-L*0.33);g.moveTo(L*0.95,0);g.quadraticCurveTo(L*1.08,-L*0.2,L*1.0,-L*0.32);g.stroke();g.fillStyle=GOLD;g.beginPath();g.arc(L*1.02,-L*0.34,L*0.06,0,6.283);g.fill();g.lineCap='butt';
+  for(let i=0;i<7;i++){const idx=5+i*2,[x,y]=b.bot[idx];g.fillStyle=i%2?o.team:'#e8dcc0';g.strokeStyle=INK;g.lineWidth=Math.max(0.5,L*0.015);g.beginPath();g.arc(x,y+h*0.45,L*0.055,0,6.283);g.fill();g.stroke();}
+  mast(g,0,0,L*0.75,L);sqSail(g,0,-L*0.7,-L*0.2,L*0.38,L,'#f1e4c4',(g,x,y0,y1,hw)=>{g.fillStyle=shade(ACC(),-0.1);for(let k=-3;k<4;k+=2)g.fillRect(x+k*hw/4,y0,hw/4,y1-y0+10);});flag(g,-L*0.85,-L*0.1,L,o.team,t);},
+ galley(g,L,o){const t=o.t,h=L*0.083;shadow(g,L,0.18);const b=hullBody(g,L,P.galley,h,o);oars(g,L,b,11,-0.75,0.65,L*0.38,t);
+  g.fillStyle=GOLD;g.strokeStyle=INK;g.lineWidth=Math.max(0.6,L*0.02);g.beginPath();g.moveTo(L*1.25,L*0.04);g.lineTo(L*0.92,-L*0.02);g.lineTo(L*0.92,L*0.1);g.closePath();g.fill();g.stroke();
+  g.fillStyle=WOODD;g.fillRect(-L*0.95,-L*0.14,L*0.24,L*0.14);g.strokeRect(-L*0.95,-L*0.14,L*0.24,L*0.14);
+  mast(g,L*0.1,0,L*0.62,L);triSail(g,[[L*0.62,-L*0.12],[L*0.05,-L*0.75],[-L*0.55,-L*0.62],[L*0.1,-L*0.08]],L);g.strokeStyle=ROPE;g.lineWidth=Math.max(0.8,L*0.03);g.beginPath();g.moveTo(L*0.68,-L*0.08);g.lineTo(-L*0.6,-L*0.66);g.stroke();flag(g,-L*0.85,-L*0.14,L,o.team,t);},
+ dhow(g,L,o){const t=o.t,h=L*0.112;shadow(g,L,0.22);const b=hullBody(g,L,P.dhow,h,o);
+  g.strokeStyle=WOODD;g.lineWidth=Math.max(1.4,L*0.06);g.lineCap='round';g.beginPath();g.moveTo(L*0.95,-L*0.02);g.lineTo(L*1.22,-L*0.2);g.stroke();g.lineCap='butt';
+  mast(g,L*0.2,0,L*0.7,L);triSail(g,[[L*0.95,-L*0.15],[L*0.1,-L*1.1],[-L*0.75,-L*0.85],[L*0.15,-L*0.1]],L);g.strokeStyle=ROPE;g.lineWidth=Math.max(0.8,L*0.03);g.beginPath();g.moveTo(L*1.0,-L*0.1);g.lineTo(-L*0.8,-L*0.9);g.stroke();flag(g,-L*0.8,-L*0.1,L,o.team,t);},
+ cog(g,L,o){const t=o.t,h=L*0.135;shadow(g,L,0.28);const b=hullBody(g,L,P.cog,h,o);
+  for(const cx of[-L*0.7,L*0.66]){const w=L*0.38,hh=L*0.3;g.fillStyle=(CUR.sk&&CUR.sk.side)||WOOD;g.strokeStyle=INK;g.lineWidth=Math.max(0.6,L*0.02);g.fillRect(cx-w/2,-hh,w,hh+L*0.08);g.strokeRect(cx-w/2,-hh,w,hh+L*0.08);g.fillStyle=(CUR.sk&&CUR.sk.deck)||DECK;g.fillRect(cx-w/2,-hh-L*0.06,w,L*0.06);for(let k=0;k<4;k++){g.fillStyle=WOODD;g.fillRect(cx-w/2+k*w/3.4,-hh-L*0.1,w/7,L*0.05);}}
+  mast(g,0,0,L*0.82,L);sqSail(g,0,-L*0.78,-L*0.2,L*0.42,L,SAIL,EMB);flag(g,-L*0.7,-L*0.4,L,o.team,t);},
+ panokseon(g,L,o){const t=o.t,h=L*0.150;shadow(g,L,0.3);const b=hullBody(g,L,P.box,h,{...o,band:(g,bot,h)=>{g.fillStyle='#8a2a22';bot.forEach(([x,y])=>g.fillRect(x-3,y+h*0.25,8,h*0.35));g.fillStyle='#2f6a4a';bot.forEach(([x,y],i)=>{if(i%4===0)g.fillRect(x,y+h*0.32,L*0.08,h*0.2);});}});oars(g,L,b,9,-0.75,0.7,L*0.32,t);
+  const pv=(x,w)=>{g.fillStyle='#8a2a22';g.fillRect(x-w*0.4,-L*0.16,w*0.8,L*0.12);g.fillStyle='#4a525a';g.strokeStyle=INK;g.lineWidth=Math.max(0.6,L*0.02);g.beginPath();g.moveTo(x-w*0.6,-L*0.15);g.quadraticCurveTo(x,-L*0.2,x+w*0.6,-L*0.15);g.lineTo(x+w*0.38,-L*0.3);g.lineTo(x-w*0.38,-L*0.3);g.closePath();g.fill();g.stroke();};
+  const batten=(g,x,y0,y1,hw)=>{g.fillStyle=ACC();g.fillRect(x-hw*1.2,y0,hw*2.4,(y1-y0)*0.18);g.strokeStyle='rgba(90,50,10,0.7)';g.lineWidth=Math.max(0.6,L*0.02);for(let k=1;k<6;k++){const y=y0+(y1-y0)*k/6;g.beginPath();g.moveTo(x-hw*1.1,y);g.lineTo(x+hw*1.1,y);g.stroke();}};
+  mast(g,-L*0.55,0,L*0.8,L);sqSail(g,-L*0.55,-L*0.78,-L*0.25,L*0.2,L,'#e8a548',batten);pv(0,L*0.36);mast(g,L*0.55,0,L*0.8,L);sqSail(g,L*0.55,-L*0.78,-L*0.25,L*0.2,L,'#e8a548',batten);flag(g,-L*0.92,-L*0.12,L,o.team,t);},
+ turtle(g,L,o){const t=o.t,h=L*0.120;shadow(g,L,0.26);const b=hullBody(g,L,P.oval,h,o);oars(g,L,b,8,-0.7,0.6,L*0.32,t);
+  g.fillStyle='#4a525a';g.strokeStyle=INK;g.lineWidth=Math.max(0.7,L*0.025);g.beginPath();g.ellipse(-L*0.02,-L*0.08,L*0.82,L*0.24,0,Math.PI,0);g.lineTo(L*0.8,L*0.04);g.quadraticCurveTo(0,L*0.14,-L*0.84,L*0.04);g.closePath();g.fill();g.stroke();
+  g.fillStyle='#c9a24a';for(let r=0;r<3;r++)for(let i=0;i<9-r*2;i++){const x=-L*0.62+r*L*0.14+i*L*0.15,y=-L*0.02-r*L*0.1;g.beginPath();g.moveTo(x,y-L*0.06);g.lineTo(x-L*0.025,y);g.lineTo(x+L*0.025,y);g.closePath();g.fill();}
+  g.fillStyle=GOLD;g.strokeStyle=INK;g.beginPath();g.ellipse(L*0.95,-L*0.06,L*0.13,L*0.09,0,0,6.283);g.fill();g.stroke();g.fillStyle='#b8312a';g.beginPath();g.arc(L*1.04,-L*0.04,L*0.035,0,6.283);g.fill();flag(g,-L*0.85,-L*0.1,L,o.team,t);},
+ galleon(g,L,o){const t=o.t,h=L*0.128;shadow(g,L,0.24);const b=hullBody(g,L,P.ship,h,{...o,band:(g,bot,h)=>{g.fillStyle='#7a2a20';bot.forEach(([x,y])=>g.fillRect(x-3,y+h*0.35,8,h*0.18));}});
+  g.fillStyle=(CUR.sk&&CUR.sk.side)||WOOD;g.strokeStyle=INK;g.lineWidth=Math.max(0.6,L*0.022);g.beginPath();g.moveTo(-L*1.0,L*0.16);g.lineTo(-L*1.06,-L*0.48);g.lineTo(-L*0.5,-L*0.44);g.lineTo(-L*0.5,L*0.14);g.closePath();g.fill();g.stroke();
+  g.fillStyle=(CUR.sk&&CUR.sk.deck)||DECK;g.beginPath();g.moveTo(-L*1.06,-L*0.48);g.lineTo(-L*0.5,-L*0.44);g.lineTo(-L*0.56,-L*0.56);g.lineTo(-L*1.0,-L*0.58);g.closePath();g.fill();g.stroke();
+  g.fillStyle=GOLD;g.fillRect(-L*1.06,-L*0.5,L*0.56,L*0.07);g.fillRect(-L*1.04,-L*0.42,L*0.07,L*0.5);g.fillRect(-L*0.57,-L*0.42,L*0.06,L*0.5);g.fillStyle='#2b2418';for(let i=0;i<3;i++)g.fillRect(-L*0.93+i*L*0.13,-L*0.32,L*0.08,L*0.1);g.fillStyle='rgba(255,220,140,0.7)';for(let i=0;i<3;i++)g.fillRect(-L*0.92+i*L*0.13,-L*0.31,L*0.06,L*0.04);
+  g.strokeStyle=ROPE;g.lineWidth=Math.max(0.9,L*0.035);g.beginPath();g.moveTo(L*0.85,-L*0.05);g.lineTo(L*1.3,-L*0.22);g.stroke();
+  mast(g,-L*0.75,-L*0.56,L*0.42,L);triSail(g,[[-L*0.73,-L*0.95],[-L*0.48,-L*0.75],[-L*0.73,-L*0.6]],L);
+  mast(g,-L*0.1,0,L*0.95,L);sqSail(g,-L*0.1,-L*0.9,-L*0.3,L*0.3,L,SAIL,EMB);
+  mast(g,L*0.48,0,L*0.82,L);sqSail(g,L*0.48,-L*0.78,-L*0.28,L*0.25,L);triSail(g,[[L*0.78,-L*0.62],[L*0.95,-L*0.35],[L*1.25,-L*0.24]],L);flag(g,-L*0.1,-L*0.95,L,o.team,t);},
+ sloop(g,L,o){const t=o.t,h=L*0.098;shadow(g,L,0.2);const b=hullBody(g,L,P.slim,h,o);
+  g.strokeStyle=ROPE;g.lineWidth=Math.max(0.9,L*0.035);g.beginPath();g.moveTo(L*0.85,-L*0.04);g.lineTo(L*1.35,-L*0.16);g.stroke();
+  mast(g,L*0.05,0,L*0.95,L);triSail(g,[[L*0.02,-L*0.9],[-L*0.35,-L*0.55],[-L*0.75,-L*0.12],[L*0.02,-L*0.12]],L,'#3a3b44',true);triSail(g,[[L*0.08,-L*0.88],[L*0.6,-L*0.45],[L*1.3,-L*0.16],[L*0.08,-L*0.18]],L,'#4a4b55',true);flag(g,-L*0.85,-L*0.1,L,o.team,t);},
+ line(g,L,o){const t=o.t,h=L*0.180;shadow(g,L,0.24);const b=hullBody(g,L,P.ship,h,{...o,side:'#3a2a1c',band:(g,bot,h)=>{g.fillStyle='#e0b43a';for(const r of[0.18,0.58]){bot.forEach(([x,y],i)=>{if(i<23)g.fillRect(x-1,y+h*r,L*0.11,h*0.22);});g.fillStyle='#14100a';bot.forEach(([x,y],i)=>{if(i>2&&i<22)g.fillRect(x+L*0.02,y+h*r+h*0.04,L*0.04,h*0.14);});g.fillStyle='#e0b43a';}}});
+  g.fillStyle=GOLD;g.fillRect(-L*1.0,-L*0.18,L*0.06,L*0.3);g.strokeStyle=ROPE;g.lineWidth=Math.max(0.9,L*0.035);g.beginPath();g.moveTo(L*0.88,-L*0.04);g.lineTo(L*1.32,-L*0.24);g.stroke();
+  for(const[x,H,w]of[[-L*0.6,L*0.85,0.22],[-L*0.02,L*1.0,0.27],[L*0.55,L*0.88,0.23]]){mast(g,x,0,H,L);sqSail(g,x,-H*0.5,-L*0.18,L*w,L,SAIL,w===0.27?EMB:null);sqSail(g,x,-H*0.95,-H*0.55,L*w*0.8,L);}flag(g,-L*0.02,-L*1.0,L,o.team,t);},
+ merchant(g,L,o){const t=o.t,h=L*0.128;shadow(g,L,0.28);const b=hullBody(g,L,P.belly,h,o);
+  const box=(x,y,s,c)=>{g.fillStyle=c;g.strokeStyle=INK;g.lineWidth=Math.max(0.5,L*0.015);g.fillRect(x-s/2,y-s,s,s);g.strokeRect(x-s/2,y-s,s,s);};
+  box(-L*0.12,L*0.08,L*0.2,'#c08a4a');box(L*0.1,L*0.08,L*0.2,'#b07a3a');box(-L*0.01,-L*0.12,L*0.18,'#c89a5a');
+  for(const x of[-L*0.36,-L*0.26,L*0.3,L*0.4]){g.fillStyle='#7a5530';g.strokeStyle=INK;g.beginPath();g.ellipse(x,L*0.02,L*0.06,L*0.08,0,0,6.283);g.fill();g.stroke();}
+  mast(g,-L*0.45,0,L*0.82,L);sqSail(g,-L*0.45,-L*0.78,-L*0.24,L*0.26,L,SAIL,EMB);mast(g,L*0.42,0,L*0.75,L);sqSail(g,L*0.42,-L*0.7,-L*0.24,L*0.22,L);flag(g,-L*0.88,-L*0.1,L,o.team,t);},
+ boat(g,L,o){const t=o.t,h=L*0.090;shadow(g,L,0.24);const b=hullBody(g,L,P.row,h,{...o,deck:'#a87848'});g.strokeStyle=WOODD;g.lineWidth=Math.max(0.8,L*0.04);for(const x of[-L*0.35,0,L*0.35]){g.beginPath();g.moveTo(x,-L*0.08);g.lineTo(x,L*0.08);g.stroke();}
+  g.strokeStyle='#d9a05a';g.lineCap='round';g.lineWidth=Math.max(1,L*0.04);const sw=Math.sin(t*4)*L*0.08;g.beginPath();g.moveTo(-L*0.05,-L*0.1);g.lineTo(-L*0.25-sw,-L*0.4);g.moveTo(-L*0.05,L*0.12);g.lineTo(-L*0.3-sw,L*0.38);g.stroke();g.lineCap='butt';}
+};
+function drawShip(g,kind,x,y,L,team,t=1,ang=0){CUR.team=team;g.save();g.translate(x,y);const c=Math.cos(ang),s=Math.sin(ang),f=c>=0?1:-1;g.rotate(f*0.26*s);g.scale(f,1);SHIPS[kind](g,L,{team,t,lw:Math.max(0.6,L*0.022)});g.restore();}
+
+
+const LIST=[['longship','롱쉽'],['galley','갤리'],['dhow','다우'],['cog','코그'],['panokseon','판옥선'],['turtle','거북선'],['galleon','갈레온'],['sloop','슬루프'],['line','전열함'],['merchant','상선'],['boat','작은 배']];
+const OAR=new Set(['longship','galley','panokseon','turtle','boat']);
+const SKINS={
+ default:null,
+ paper:{n:'종이배',side:'#e2dccb',deck:'#f6f2e8',sail:'#ffffff',acc:'#a8a08d'},
+ star:{n:'별빛 항적',side:'#33406e',deck:'#5a6aa0',sail:'#e6f3ff',acc:'#9fc4ff',glow:'rgba(200,220,255,0.35)'},
+ gold:{n:'황금 함대',side:'#b8862e',deck:'#e6c56a',sail:'#fff1c2',acc:'#ffd27a'},
+ sakura:{n:'꽃잎 함대',side:'#9a5a72',deck:'#d9a2b8',sail:'#ffd0e4',acc:'#ff8fbd'},
+ ghostfire:{n:'도깨비불',side:'#23485a',deck:'#3e6e82',sail:'#c6ecff',acc:'#5ac3ff',glow:'rgba(90,195,255,0.45)'},
+ ice:{n:'빙결 함대',side:'#7fbcd6',deck:'#d4f4ff',sail:'#effbff',acc:'#9fe0ff'},
+ pirate:{n:'흑기 해적선',side:'#24252d',deck:'#3a3b44',sail:'#2a2b34',acc:'#e8e2d0'},
+ dragon:{n:'용선',side:'#8a2a1c',deck:'#b8543a',sail:'#ffd27a',acc:'#c8402c',head:true},
+ rainbow:{n:'무지개 항적',side:'#9a6a3a',deck:'#c99a5e',sail:'rainbow',acc:'#ff5d6c'},
+ lightning:{n:'뇌전 함대',side:'#34344a',deck:'#55557a',sail:'#fff3a8',acc:'#ffe066'},
+ phoenix:{n:'불사조 함대',side:'#8a3a1c',deck:'#c0663a',sail:'#ffcf7a',acc:'#ff7a3d',glow:'rgba(255,140,60,0.4)'},
+ void:{n:'심연 함대',side:'#2a1440',deck:'#4a2a6a',sail:'#9b6bdc',acc:'#c08bff',glow:'rgba(150,80,255,0.45)'},
+ galaxy:{n:'은하 함대',side:'#1e2250',deck:'#353a80',sail:'#cfc8ff',acc:'#ffd6ff',glow:'rgba(130,110,255,0.4)'},
+};
+function dragonHead(g,L){g.fillStyle='#ffd27a';g.strokeStyle=INK;g.lineWidth=Math.max(0.5,L*0.02);g.beginPath();g.moveTo(L*0.92,-L*0.05);g.quadraticCurveTo(L*1.0,-L*0.42,L*1.18,-L*0.36);g.lineTo(L*1.1,-L*0.26);g.quadraticCurveTo(L*1.02,-L*0.2,L*1.0,-L*0.02);g.closePath();g.fill();g.stroke();g.fillStyle='#c8402c';g.beginPath();g.arc(L*1.08,-L*0.33,Math.max(0.8,L*0.035),0,6.283);g.fill();}
+// one ship with flip + tilt, skin, calm
+function body(g,kind,L,team,t,skin,calm){
+ const sk=SKINS[skin]||null;CUR.team=team;CUR.sk=sk;CUR.bil=calm?0.1:1+0.18*Math.sin(t*2.2);
+ if(sk&&sk.glow){const gr=g.createRadialGradient(0,-L*0.3,0,0,-L*0.3,L*1.3);gr.addColorStop(0,sk.glow);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.beginPath();g.arc(0,-L*0.3,L*1.3,0,6.283);g.fill();}
+ const tt=(calm&&!OAR.has(kind))?0:t;SHIPS[kind](g,L,{team,t:tt,lw:Math.max(0.6,L*0.022)});
+ if(sk&&sk.head&&kind!=='longship'&&kind!=='turtle')dragonHead(g,L);
+ CUR.sk=null;CUR.bil=1;
+}
+// small ships come from a sprite cache (4 animation frames per look and size); big ones on screen are drawn live
+const SPR=new Map(),FR=4,PER=Math.PI/2;
+function one(g,kind,x,y,ang,L,team,t,st,skin,calm){
+ const T=g.getTransform(),sc=Math.hypot(T.a,T.b),px=L*sc;
+ g.save();g.translate(x,y);const c=Math.cos(ang),s=Math.sin(ang);
+ if(st){if(c>0.15)st.f=1;else if(c<-0.15)st.f=-1;}const f=st?st.f:(c>=0?1:-1);
+ g.rotate(f*0.26*s+Math.sin(t*2.4+x*0.1)*0.03);g.scale(f,1);
+ if(px<46&&px>2){const still=calm&&!OAR.has(kind),fr=still?0:Math.floor((((t%PER)+PER)%PER)/PER*FR),q=Math.max(4,Math.round(px/2)*2),key=kind+'|'+team+'|'+skin+'|'+(calm?1:0)+'|'+fr+'|'+q;
+  let cv=SPR.get(key);
+  if(!cv){cv=document.createElement('canvas');cv.width=Math.ceil(q*3.2);cv.height=Math.ceil(q*2.6);const c2=cv.getContext('2d');c2.translate(q*1.6,q*1.75);body(c2,kind,q,team,fr*PER/FR,skin,calm);SPR.set(key,cv);if(SPR.size>360)SPR.delete(SPR.keys().next().value);}
+  else{SPR.delete(key);SPR.set(key,cv);}
+  g.drawImage(cv,-1.6*L,-1.75*L,cv.width/q*L,cv.height/q*L);
+ } else body(g,kind,L,team,t,skin,calm);
+ g.restore();
+}
+function fleetAt(g,kind,x,y,ang,tier,L,team,t,st,skin,calm,seed){
+ const ca=Math.cos(ang),sa=Math.sin(ang);
+ if(skin!=='default'&&!calm)fleetTrail(g,skin,x,y,ca,sa,t,seed);
+ const pts=[[[-6,-6,0.6],[5,5,0.6]],[[-11,-9,0.65],[-11,9,0.65],[6,0,0.85]],[[-15,-12,0.75],[-15,12,0.75],[8,0,1]],[[-17,-14,0.75],[-17,14,0.75],[-28,0,0.55],[10,0,1.2]]][tier];
+ pts.sort((p,q)=>(p[0]*sa+p[1]*ca)-(q[0]*sa+q[1]*ca)).forEach(([lx,ly,k])=>one(g,kind,x+lx*ca-ly*sa,y+lx*sa+ly*ca,ang,L*k,team,t+lx,st,skin,calm));
+}
+
+// ---------- army (oblique, upright figures; flip by heading) ----------
+const SKIN_ARMY={paper:'#f2efe6',gold:'#ffd27a',star:'#e6f3ff',ghostfire:'#8fd8ff',dragon:'#c8402c',sakura:'#ffb7d5',ice:'#c9f0ff',pirate:'#1b1c24',rainbow:'#ffffff',lightning:'#ffe066',phoenix:'#ff7a3d',void:'#7a3fc0',galaxy:'#4a50b8'};
+const DUST={default:'rgba(200,180,140,',paper:'rgba(240,236,224,',gold:'rgba(255,210,122,',star:'rgba(230,243,255,',ghostfire:'rgba(120,200,255,',dragon:'rgba(255,120,60,',sakura:'rgba(255,170,205,',ice:'rgba(220,245,255,',pirate:'rgba(70,72,80,',rainbow:'rgba(255,255,255,',lightning:'rgba(255,240,140,',phoenix:'rgba(255,140,60,',void:'rgba(150,80,255,',galaxy:'rgba(160,150,255,'};
+const ERA={viking:'바이킹·북유럽',asia:'동아시아',early:'갤리 시대·지중해',modern:'대항해·근세'};
+function helmet(g,era,x,y,r){g.strokeStyle=INK;g.lineWidth=Math.max(0.4,r*0.25);
+ if(era==='viking'){g.fillStyle='#8a929a';g.beginPath();g.arc(x,y-r*0.15,r*1.05,Math.PI,0);g.closePath();g.fill();g.stroke();g.fillRect(x+r*0.1,y-r*0.2,r*0.25,r*0.8);}
+ else if(era==='asia'){g.fillStyle='#22201c';g.beginPath();g.ellipse(x,y-r*0.45,r*1.7,r*0.45,0,0,6.283);g.fill();g.beginPath();g.arc(x,y-r*0.6,r*0.7,Math.PI,0);g.fill();g.fillStyle='#c8402c';g.fillRect(x-r*0.15,y-r*1.6,r*0.3,r*0.5);}
+ else if(era==='early'){g.fillStyle='#c9a24a';g.beginPath();g.arc(x,y-r*0.15,r*1.05,Math.PI,0);g.closePath();g.fill();g.stroke();g.fillStyle='#b8312a';g.beginPath();g.ellipse(x-r*0.1,y-r*1.25,r*1.0,r*0.35,-0.2,0,6.283);g.fill();}
+ else {g.fillStyle='#1e1a16';g.beginPath();g.moveTo(x-r*1.5,y-r*0.3);g.lineTo(x,y-r*1.4);g.lineTo(x+r*1.5,y-r*0.3);g.closePath();g.fill();}}
+// one foot soldier, feet at (0,0), facing +x
+function soldier(g,H,col,era,t,ph,kind='spear'){const r=H*0.16,step=Math.sin(t*9+ph);
+ g.fillStyle='rgba(0,0,0,0.3)';g.beginPath();g.ellipse(0,0,H*0.3,H*0.09,0,0,6.283);g.fill();
+ g.strokeStyle='#3a2a1c';g.lineWidth=Math.max(0.8,H*0.09);g.lineCap='round';g.beginPath();g.moveTo(-H*0.05,-H*0.38);g.lineTo(-H*0.05-step*H*0.14,0);g.moveTo(H*0.05,-H*0.38);g.lineTo(H*0.05+step*H*0.14,0);g.stroke();
+ const by=-H*0.38+Math.abs(step)*-H*0.04;
+ g.fillStyle=col;g.strokeStyle=INK;g.lineWidth=Math.max(0.4,H*0.05);g.beginPath();g.roundRect(-H*0.17,by-H*0.36,H*0.34,H*0.4,H*0.08);g.fill();g.stroke();
+ g.fillStyle='#e8c8a0';g.beginPath();g.arc(0,by-H*0.48,r,0,6.283);g.fill();g.stroke();helmet(g,era,0,by-H*0.48,r);
+ if(kind==='spear'){g.strokeStyle='#6b4a2a';g.lineWidth=Math.max(0.6,H*0.05);g.beginPath();g.moveTo(H*0.2,by+H*0.05);g.lineTo(H*0.32,by-H*0.95);g.stroke();g.fillStyle='#d8dde0';g.beginPath();g.moveTo(H*0.32,by-H*1.1);g.lineTo(H*0.37,by-H*0.92);g.lineTo(H*0.27,by-H*0.93);g.closePath();g.fill();
+  g.fillStyle=shade(col,-0.3);g.beginPath();g.ellipse(H*0.16,by-H*0.18,H*0.11,H*0.17,0,0,6.283);g.fill();g.stroke();}
+ if(kind==='banner'){g.strokeStyle='#6b4a2a';g.lineWidth=Math.max(0.7,H*0.06);g.beginPath();g.moveTo(-H*0.1,by+H*0.05);g.lineTo(-H*0.1,by-H*1.25);g.stroke();const wv=Math.sin(t*6+ph)*H*0.05;g.fillStyle=col;g.strokeStyle=INK;g.lineWidth=Math.max(0.4,H*0.03);g.beginPath();g.moveTo(-H*0.1,by-H*1.25);g.lineTo(-H*0.62,by-H*1.18+wv);g.lineTo(-H*0.5,by-H*1.02);g.lineTo(-H*0.62,by-H*0.86+wv);g.lineTo(-H*0.1,by-H*0.9);g.closePath();g.fill();g.stroke();}
+ if(kind==='gun'){g.strokeStyle='#3a3530';g.lineWidth=Math.max(0.7,H*0.06);g.beginPath();g.moveTo(-H*0.1,by-H*0.25);g.lineTo(H*0.45,by-H*0.7);g.stroke();}
+ g.lineCap='butt';}
+function horse(g,H,col,era,t,ph){const k=Math.sin(t*10+ph);
+ g.fillStyle='rgba(0,0,0,0.3)';g.beginPath();g.ellipse(0,0,H*0.6,H*0.12,0,0,6.283);g.fill();
+ g.strokeStyle='#4a3020';g.lineWidth=Math.max(0.8,H*0.08);g.lineCap='round';for(const[x,s]of[[-0.35,1],[-0.2,-1],[0.25,-1],[0.4,1]]){g.beginPath();g.moveTo(H*x,-H*0.42);g.lineTo(H*x+k*s*H*0.12,0);g.stroke();}g.lineCap='butt';
+ g.fillStyle='#7a5530';g.strokeStyle=INK;g.lineWidth=Math.max(0.4,H*0.04);g.beginPath();g.ellipse(0,-H*0.55,H*0.5,H*0.2,0,0,6.283);g.fill();g.stroke();
+ g.beginPath();g.moveTo(H*0.35,-H*0.6);g.lineTo(H*0.58,-H*0.95);g.lineTo(H*0.72,-H*0.85);g.lineTo(H*0.5,-H*0.5);g.closePath();g.fill();g.stroke();
+ g.fillStyle=col;g.fillRect(-H*0.25,-H*0.72,H*0.4,H*0.12);
+ g.save();g.translate(-H*0.02,-H*0.62);soldierTop(g,H*0.85,col,era,t,ph);g.restore();}
+function soldierTop(g,H,col,era,t,ph){const r=H*0.16;g.fillStyle=col;g.strokeStyle=INK;g.lineWidth=Math.max(0.4,H*0.05);g.beginPath();g.roundRect(-H*0.15,-H*0.42,H*0.3,H*0.42,H*0.08);g.fill();g.stroke();
+ g.fillStyle='#e8c8a0';g.beginPath();g.arc(0,-H*0.54,r,0,6.283);g.fill();g.stroke();helmet(g,era,0,-H*0.54,r);
+ g.strokeStyle='#6b4a2a';g.lineWidth=Math.max(0.6,H*0.05);g.beginPath();g.moveTo(-H*0.2,-H*0.1);g.lineTo(H*0.75,-H*0.55);g.stroke();}
+function cannon(g,H,col,t,ph){const k=Math.sin(t*9+ph)*0.05;
+ g.fillStyle='rgba(0,0,0,0.3)';g.beginPath();g.ellipse(0,0,H*0.65,H*0.12,0,0,6.283);g.fill();
+ g.fillStyle='#6b4a2a';g.strokeStyle=INK;g.lineWidth=Math.max(0.4,H*0.04);g.fillRect(-H*0.45,-H*0.42,H*0.75,H*0.18);g.strokeRect(-H*0.45,-H*0.42,H*0.75,H*0.18);
+ g.fillStyle='#2a2826';g.beginPath();g.moveTo(-H*0.3,-H*0.5);g.lineTo(H*0.6,-H*0.55);g.lineTo(H*0.6,-H*0.4);g.lineTo(-H*0.3,-H*0.33);g.closePath();g.fill();g.stroke();
+ for(const x of[-H*0.25,H*0.15]){g.save();g.translate(x,-H*0.18);g.rotate(t*3);g.strokeStyle='#4a3020';g.lineWidth=Math.max(0.6,H*0.05);g.beginPath();g.arc(0,0,H*0.18,0,6.283);g.moveTo(-H*0.18,0);g.lineTo(H*0.18,0);g.moveTo(0,-H*0.18);g.lineTo(0,H*0.18);g.stroke();g.restore();}
+ g.fillStyle=col;g.fillRect(-H*0.45,-H*0.42,H*0.12,H*0.18);}
+function tower(g,H,col,t,ph){g.fillStyle='rgba(0,0,0,0.3)';g.beginPath();g.ellipse(0,0,H*0.5,H*0.12,0,0,6.283);g.fill();
+ const sw=Math.sin(t*4+ph)*H*0.02;g.fillStyle='#8a6a44';g.strokeStyle=INK;g.lineWidth=Math.max(0.5,H*0.04);g.beginPath();g.moveTo(-H*0.38,-H*0.15);g.lineTo(H*0.38,-H*0.15);g.lineTo(H*0.28+sw,-H*1.5);g.lineTo(-H*0.28+sw,-H*1.5);g.closePath();g.fill();g.stroke();
+ g.strokeStyle='rgba(40,25,10,0.6)';for(let k=1;k<5;k++){g.beginPath();g.moveTo(-H*0.36+k*0.02*H,-H*0.15-k*H*0.27);g.lineTo(H*0.36-k*0.02*H,-H*0.15-k*H*0.27);g.stroke();}
+ g.fillStyle=col;g.fillRect(-H*0.3+sw,-H*1.62,H*0.6,H*0.14);g.strokeRect(-H*0.3+sw,-H*1.62,H*0.6,H*0.14);
+ for(const x of[-H*0.25,H*0.25]){g.fillStyle='#4a3020';g.beginPath();g.arc(x,-H*0.1,H*0.11,0,6.283);g.fill();}}
+// formation per tier: [lx, ly, type]
+const FORM=[
+ [[0,0,'s'],[-7,-5,'s'],[-7,5,'s']],
+ [[3,0,'b'],[-5,-6,'s'],[-5,6,'s'],[-12,0,'s'],[-12,-11,'s'],[-12,11,'s']],
+ [[6,-7,'h'],[6,7,'h'],[-2,0,'b'],[-9,-6,'s'],[-9,6,'s'],[-16,0,'s'],[-16,-11,'s'],[-16,11,'s']],
+ [[8,0,'h'],[0,-9,'h'],[-3,4,'b'],[-10,-4,'s'],[-10,8,'s'],[-17,-9,'s'],[-17,3,'s'],[-26,-2,'x'],[-24,12,'s']]];
+function armyAt(g,x,y,ang,tier,H,team,t,st,era,skin,seed){
+ const ca=Math.cos(ang),sa=Math.sin(ang),c=Math.cos(ang);if(st){if(c>0.15)st.f=1;else if(c<-0.15)st.f=-1;}const f=st?st.f:(c>=0?1:-1);
+ const col=(skin&&skin!=='default'&&SKIN_ARMY[skin])||team,dust=DUST[skin]||DUST.default,sc=H/8;
+ // dust behind the column
+ for(let i=0;i<6;i++){const ph=(t*1.2+i/6+seed)%1,d=8+ph*26,o=Math.sin(i*2.3+seed)*6;g.fillStyle=dust+(0.35*(1-ph))+')';g.beginPath();g.arc(x-ca*d*sc-sa*o*sc,y-sa*d*sc+ca*o*sc*0.6,(1.5+ph*3)*sc,0,6.283);g.fill();}
+ const us=FORM[tier].map(([lx,ly,k],i)=>({x:x+(lx*ca-ly*0.75*sa)*sc,y:y+(lx*sa+ly*0.75*ca)*sc*0.85,k,i}));
+ us.sort((a,b)=>a.y-b.y).forEach(u=>{g.save();g.translate(u.x,u.y);g.rotate(f*0.12*sa);g.scale(f,1);
+  if(u.k==='s')soldier(g,H,col,era,t,u.i*1.7+seed,era==='modern'?'gun':'spear');else if(u.k==='b')soldier(g,H,col,era,t,u.i*1.7+seed,'banner');else if(u.k==='h')horse(g,H*1.1,col,era,t,u.i+seed);else{if(era==='modern')cannon(g,H*1.2,col,t,seed);else tower(g,H,col,t,seed);}
+  g.restore();});
+}
+
+const MSTYLE = {};
+for (let i = 1; i <= 12; i++) MSTYLE['ea' + i] = { era: 'asia', roof: 'asia' };
+for (const k of ['mr1', 'mr2', 'mr3', 'mr4', 'mr5', 'mr6', 'mr7', 'mr8']) MSTYLE[k] = { era: 'oar', roof: 'eu' };
+MSTYLE.mr9 = MSTYLE.mr10 = { era: 'line', roof: 'eu' };
+for (const k of ['mx1', 'mx2', 'mx3']) MSTYLE[k] = { era: 'oar', roof: 'me' };
+for (let i = 4; i <= 10; i++) MSTYLE['mx' + i] = { era: 'caravel', roof: 'me' };
+Object.assign(MSTYLE, { ar1: { era: 'caravel', roof: 'eu' }, ar2: { era: 'caravel', roof: 'eu' }, ar3: { era: 'pirate', roof: 'eu' }, ar4: { era: 'line', roof: 'me' }, ar5: { era: 'line', roof: 'me' },
+  ar6: { era: 'caravel', roof: 'eu' }, ar7: { era: 'caravel', roof: 'eu' }, ar8: { era: 'caravel', roof: 'eu' }, ar9: { era: 'caravel', roof: 'me' }, ar10: { era: 'line', roof: 'me' },
+  ar11: { era: 'line', roof: 'me' }, ar12: { era: 'line', roof: 'me' }, ar13: { era: 'caravel', roof: 'me' }, ar14: { era: 'line', roof: 'me' }, ar15: { era: 'oar', roof: 'me' } });
+for (let i = 1; i <= 12; i++) MSTYLE['cb' + i] = { era: 'pirate', roof: 'eu' };
+MSTYLE.cb11 = { era: 'line', roof: 'eu' };
+Object.assign(MSTYLE, { nx1: { era: 'viking', roof: 'eu' }, nx2: { era: 'viking', roof: 'eu' }, nx3: { era: 'viking', roof: 'eu' }, nx4: { era: 'cog', roof: 'eu' }, nx5: { era: 'galleon', roof: 'eu' },
+  nxv: { era: 'galleon', roof: 'eu' }, nx6: { era: 'galleon', roof: 'eu' }, nx7: { era: 'line', roof: 'eu' }, nx8: { era: 'line', roof: 'eu' }, nx9: { era: 'line', roof: 'eu', teams: { 1: 'oar' } },
+  nx10: { era: 'line', roof: 'eu' }, nx11: { era: 'line', roof: 'eu' } });
+const REGION_ERA = { asia: 'asia', med: 'oar', mideast: 'caravel', africa: 'caravel', carib: 'pirate', europe: 'line' };
+const ERAS = { asia: { mid: 'panokseon', big: 'panokseon', men: 'asia' }, oar: { mid: 'galley', big: 'galley', men: 'early' }, viking: { mid: 'longship', big: 'longship', men: 'viking' },
+  cog: { mid: 'cog', big: 'cog', men: 'viking' }, caravel: { mid: 'dhow', big: 'galleon', men: 'modern' }, galleon: { mid: 'galleon', big: 'galleon', men: 'modern' },
+  pirate: { mid: 'sloop', big: 'galleon', men: 'modern' }, line: { mid: 'sloop', big: 'line', men: 'modern' } };
+function eraOf(owner) {
+  const m = mission, s = m && (MSTYLE[m.id] || (missionRegion && { era: REGION_ERA[missionRegion.id] }));
+  const e = (s && s.teams && s.teams[owner]) || (s && s.era) || 'pirate';
+  return ERAS[e] || ERAS.pirate;
+}
+const calmNow = () => { try { return !!(RULES.calm && calmOn()); } catch (e) { return false; } };
+// a fleet: hulls by size tier; flips to face its heading and tilts a little up or down
+function fleet(g, x, y, ang, amt, team, skin, t, st, owner) {
+  const E = eraOf(owner), tier = fleetTier(amt), ca = Math.cos(ang), sa = Math.sin(ang), calm = calmNow(), sk = skin || 'default';
+  const L = [[['boat', -8, -6, 7], ['boat', 5, 5, 7]], [['boat', -14, -11, 7], ['boat', -14, 11, 7], [E.mid, 6, 0, 10]],
+    [[E.mid, -18, -14, 8.6], [E.mid, -18, 14, 8.6], [E.big, 9, 0, 12.6]], [[E.big, -20, -16, 9.6], [E.big, -20, 16, 9.6], ['boat', -34, 0, 7], [E.big, 11, 0, 16]]][tier];
+  let list = L;
+  if (tier === 0) { const n = Math.max(1, Math.min(3, Math.ceil(amt / 4))); list = [['boat', 3, 0, 7.2], ['boat', -9, -8, 7], ['boat', -9, 8, 7]].slice(0, n); }
+  if (tier === 3) { const gl = g.createRadialGradient(x, y, 2, x, y, 30); gl.addColorStop(0, team + '30'); gl.addColorStop(1, team + '00'); g.fillStyle = gl; g.beginPath(); g.arc(x, y, 30, 0, 6.283); g.fill(); }
+  list.map(([k, lx, ly, s]) => [k, x + lx * ca - ly * sa, y + lx * sa + ly * ca, s]).sort((a, b) => a[2] - b[2])
+    .forEach(([k, px, py, s]) => one(g, k, px, py, ang, s, team, t + px * 0.05, st, sk, calm && !OAR.has(k)));
+  return [11, 14, 18, 24][tier];
+}
+function oneShip(g, kind, x, y, ang, L, team, t, st, skin) { one(g, kind, x, y, ang, L, team, t, st, skin || 'default', calmNow() && !OAR.has(kind)); }
+function troops(g, x, y, ang, amt, team, skin, t, st, owner, seed) {
+  const tier = fleetTier(amt); armyAt(g, x, y, ang, tier, 11, team, t, st, eraOf(owner).men, skin || 'default', seed || 0); return [10, 12, 15, 18][tier];
+}
+function heads(g, x, y, n, col) { for (let i = 0; i < n; i++) { g.fillStyle = col; g.strokeStyle = INK; g.lineWidth = 0.5; g.beginPath(); g.arc(x - 4 + i * 3.4, y - 2.8, 1.7, 0, 6.283); g.fill(); g.stroke(); } }
+// boarding at a harbour (toSea) or landing (!toSea); p goes 0 -> 1 over the wait
+function shore(g, x, y, ang, amt, team, skin, t, st, owner, seed, p, toSea) {
+  const ca = Math.cos(ang), sa = Math.sin(ang), col = (skin && SKIN_ARMY[skin]) || team, E = eraOf(owner), tier = fleetTier(amt), at = (d, o = 0) => [x + ca * d - sa * o, y + sa * d + ca * o];
+  const boats = a => { g.globalAlpha *= a; for (const s of [-1, 1]) { const [bx, by] = at(toSea ? 9 : -9, s * 8); one(g, 'boat', bx, by, ang, 7.4, team, t + s, st, skin || 'default', false); heads(g, bx, by, toSea ? Math.min(3, Math.floor(p * 6)) : Math.max(0, 3 - Math.floor(Math.max(0, p - 0.35) * 7)), col); } g.globalAlpha /= a; };
+  const a0 = g.globalAlpha;
+  if (toSea) {
+    const ga = 1 - Math.min(1, p * 1.4); if (ga > 0) { g.globalAlpha = a0 * ga; const [ax, ay] = at(-11); armyAt(g, ax, ay, ang, tier, 11, team, t * 0.5, st, E.men, skin || 'default', seed); }
+    g.globalAlpha = a0; boats(p < 0.75 ? 1 : Math.max(0, 1 - (p - 0.75) / 0.25));
+    if (p > 0.55) { g.globalAlpha = a0 * (p - 0.55) / 0.45; const [fx, fy] = at(22); fleet(g, fx, fy, ang, amt, team, skin, t, st, owner); }
+  } else {
+    if (p < 0.45) { g.globalAlpha = a0 * (1 - p / 0.45); const [fx, fy] = at(-22); fleet(g, fx, fy, ang, amt, team, skin, t, st, owner); }
+    g.globalAlpha = a0; boats(p < 0.25 ? p / 0.25 : p < 0.8 ? 1 : Math.max(0, 1 - (p - 0.8) / 0.2));
+    if (p > 0.35) { g.globalAlpha = a0 * Math.min(1, (p - 0.35) / 0.4); const [ax, ay] = at(12); armyAt(g, ax, ay, ang, tier, 11, team, t * 0.5, st, E.men, skin || 'default', seed); }
+  }
+  g.globalAlpha = a0; return 18;
+}
+return { fleet, oneShip, troops, shore, eraOf, MSTYLE };
+  })();
+  function drawFleetShips(g, x, y, ang, amt, rid, c, skin, t, wob = 0) { return SV.fleet(g, x, y, ang, amt, c, skin, t, null, 1); }
+
   function boat(id, c, g = ctx) {
     g.fillStyle = c; g.strokeStyle = c; g.lineWidth = 1;
     g.beginPath();
@@ -2903,18 +3161,13 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
         trail.addColorStop(0, navy ? c + '66' : 'rgba(200,180,140,0.35)'); trail.addColorStop(1, navy ? c + '00' : 'rgba(200,180,140,0)');
         ctx.strokeStyle = trail; ctx.lineWidth = navy ? 3 : 5; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - ca * 30, p.y - sa * 30); ctx.stroke();
       }
-      const rid = race(f.owner).id;
       let reach = 8;
-      if (navy && f.turtle) reach = drawTurtle(ctx, p.x, p.y, ang, c);
-      else if (navy) { reach = drawFleetShips(ctx, p.x, p.y, ang, hidden ? 3 : f.amt, rid, c, skin, time, f.seed); if (f.fire || f.burnUntil > clock) flames(ctx, p.x, p.y - 2, 7, f.seed); }
-      else {
-        const k = hidden ? 3 : Math.min(9, 1 + Math.floor(f.amt / 5));
-        for (let i = 0; i < k; i++) {
-          const row = Math.ceil(i / 2), side = i % 2 ? 1 : -1, lx = -row * 5, ly = side * row * 3.5;
-          const bx = p.x + lx * ca - ly * sa, by = p.y + lx * sa + ly * ca;
-          ctx.fillStyle = (skin && SKIN_ARMY[skin]) || c; ctx.strokeStyle = '#08151f'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.rect(bx - 2.2, by - 2.2, 4.4, 4.4); ctx.fill(); ctx.stroke();
-        }
-      }
+      const st = f._fl || (f._fl = { f: Math.cos(ang) >= 0 ? 1 : -1 }), amtD = hidden ? 3 : f.amt;
+      const shoreT = f.wait > 0 && !f.grounded && f.seg > 0 && f.seg < f.modes.length && f.modes[f.seg] !== f.modes[f.seg - 1];
+      if (shoreT) { const w = f.via[f.seg], toSea = f.modes[f.seg] === 1, off = (w ? rad(w) * 0.9 + 6 : 0) * (toSea ? 1 : -1); reach = SV.shore(ctx, p.x + Math.cos(ang) * off, p.y + Math.sin(ang) * off, ang, amtD, c, skin, time, st, f.owner, f.seed, Math.max(0, Math.min(1, 1 - f.wait / EMBARK)), toSea); }
+      else if (navy && f.turtle) { ctx.strokeStyle = c; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(p.x, p.y + 3, 24, 11, 0, 0, 6.283); ctx.stroke(); SV.oneShip(ctx, 'turtle', p.x, p.y, ang, 15, c, time, st, null); reach = 22; }
+      else if (navy) { reach = SV.fleet(ctx, p.x, p.y, ang, amtD, c, skin, time, st, f.owner); if (f.fire || f.burnUntil > clock) flames(ctx, p.x, p.y - 2, 7, f.seed); }
+      else reach = SV.troops(ctx, p.x, p.y, ang, amtD, c, skin, time, st, f.owner, f.seed);
       ctx.globalAlpha = 1;
       if (!hidden) labels.push({ x: p.x, y: p.y, o: f.owner, a: f.amt, off: Math.max(reach * 0.75, 7) + 3 * S });
       if (!hidden && !f.done) { const k = seaK(f); if (k < 0.7 || k > 1.3) pill(`×${k.toFixed(k < 1 ? 2 : 1).replace(/0$/, '')}`, p.x, p.y - Math.max(reach, 8) - 10 * S, k < 1 ? '#bfe6ff' : '#ffe6a8', k < 1 ? '#7fb8e088' : '#ffd27a88', 9); }   // how much faster or slower this fleet sails right now
@@ -3655,7 +3908,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   $('pSet').addEventListener('click', gesture(() => { feel('tick'); showSettings(); }));
   // ----- dev mode: memos taken anywhere, with the screen and battle state, gathered on the home screen to copy in one go -----
   // ----- patch log: what changed in each mission, shown only in dev mode so a playtest can check it -----
-  const PATCH_LATEST = 'v97';
+  const PATCH_LATEST = 'v98';
   const PATCH_LOG = {
     ar1: [['v76', ['적 대기 25→12초', '목표 T 병력 34→54']]],
     ar2: [['v76', ['적 대기 35→18초', '목표 K 병력 26→42']]],
@@ -3709,7 +3962,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v97', DEV_VER = BUILD;
+  const BUILD = 'v98', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -8093,7 +8346,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     ['거점 읽는 법'],
     [(g, w, h) => guideNode(g, w / 2, h / 2, 'island', 'base', { size: 3, fill: 0.7, n: '31' }), '숫자 · 테두리 · 점', '가운데 숫자가 병력이에요. 바깥 테두리는 최대 병력까지 얼마나 찼는지 보여 주고, 다 차면 더 늘지 않아요. 아래 점 개수는 단계예요. 내 거점을 톡 눌러 강화하면 최대 4단계까지 올라가고, 생산과 최대 병력이 늘어요.'],
     ['부대와 길'],
-    [(g, w, h) => { drawFleetShips(g, 18, 18, 0, 6, 'coral', '#ffb547', null, 1); drawFleetShips(g, 52, 18, 0, 30, 'coral', '#ffb547', null, 1); g.save(); g.translate(36, 42); g.scale(0.7, 0.7); drawFleetShips(g, -22, 0, 0, 80, 'coral', '#ffb547', null, 1); drawFleetShips(g, 26, 0, 0, 150, 'coral', '#ffb547', null, 1); g.restore(); }, '함대 크기', '병력이 많을수록 배가 커져요. 10명 이하는 작은 배, 50명 이하는 범선, 100명 이하는 전함, 그보다 많으면 기함 선단이에요. 육지에서는 작은 네모 부대로 보여요.'],
+    [(g, w, h) => { drawFleetShips(g, 18, 18, 0, 6, 'coral', '#ffb547', null, 1); drawFleetShips(g, 52, 18, 0, 30, 'coral', '#ffb547', null, 1); g.save(); g.translate(36, 42); g.scale(0.7, 0.7); drawFleetShips(g, -22, 0, 0, 80, 'coral', '#ffb547', null, 1); drawFleetShips(g, 26, 0, 0, 150, 'coral', '#ffb547', null, 1); g.restore(); }, '함대 크기', '병력이 많을수록 배가 커져요. 10명 이하는 작은 배, 50명 이하는 범선, 100명 이하는 전함, 그보다 많으면 기함 선단이에요. 육지에서는 병사 부대로 보여요. 병력이 많을수록 깃발병·기병·공성 무기가 붙어요. 배 모양은 그 바다의 시대를 따라요.'],
     [(g, w, h) => { const ln = (y, col, dash) => { g.strokeStyle = col; g.lineWidth = 2.4; g.setLineDash(dash); g.beginPath(); g.moveTo(8, y); g.lineTo(w - 8, y); g.stroke(); }; ln(14, '#e8d3a8', [2, 6]); ln(28, '#9fd6ff', [7, 6]); g.setLineDash([]); ln(42, '#9fd6ff', [7, 6]); g.setLineDash([]); g.strokeStyle = 'rgba(255,90,90,0.95)'; g.lineWidth = 3.4; g.beginPath(); g.moveTo(26, 42); g.lineTo(48, 42); g.stroke(); }, '길 표시', '보낼 때 그려지는 길이에요. 모래색 점선은 육지 길, 파란 점선은 바닷길, 붉은 구간은 적 요새의 포격을 받는 곳이에요. 길은 되도록 포격을 피해 돌아가요.'],
     [(g, w, h) => { g.strokeStyle = '#ffb547cc'; g.lineWidth = 2; g.setLineDash([2, 7]); g.beginPath(); g.moveTo(10, 40); g.lineTo(w - 10, 16); g.stroke(); g.setLineDash([]); guideNode(g, 12, 40, 'island', 'base', { r: 9, n: '' }); guideNode(g, w - 12, 16, 'island', 'base', { r: 9, n: '' }); }, '보급선', '내 거점을 길게 누른 채 끌면 1.5초마다 병력이 계속 흘러가요. 끄는 길에 지나간 내 거점도 함께 묶여요. 최대 병력의 25%는 수비로 남겨요.'],
   ];
