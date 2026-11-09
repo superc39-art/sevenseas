@@ -3185,6 +3185,13 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       ctx.setLineDash([4 * S, 4 * S]); ctx.strokeStyle = `rgba(191,230,255,${0.4 + a * 0.4})`; ctx.beginPath(); ctx.arc(c[0], c[1], c[2], 0, 6.283); ctx.stroke(); ctx.setLineDash([]);
       pill(`얼음 금 · ${Math.ceil(left)}초`, c[0], c[1], '#ffd6d0', '#ff9a8a99', 10);
     }
+    if (I && !I.freed) for (const t of I.free || []) {   // fleets locked in the ice: a frosted ring and a tag, until the ice lets go
+      const n = tagNode(t); if (!n || !vis(n.x, n.y)) continue; const r = rad(n) * 1.9;
+      ctx.save(); ctx.fillStyle = 'rgba(200,236,255,0.22)'; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
+      ctx.strokeStyle = 'rgba(223,243,255,0.9)'; ctx.lineWidth = 2.2 * S; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.stroke();
+      ctx.lineWidth = 1.4 * S; for (let k = 0; k < 8; k++) { const a = k * 0.785 + 0.2; ctx.beginPath(); ctx.moveTo(n.x + Math.cos(a) * r * 0.78, n.y + Math.sin(a) * r * 0.78); ctx.lineTo(n.x + Math.cos(a) * r * 1.18, n.y + Math.sin(a) * r * 1.18); ctx.stroke(); }
+      ctx.restore(); pill('얼음에 갇힘', n.x, n.y - r - 12 * S, '#dff3ff', '#9fd0ff99', 10);
+    }
     const Wd = RULES.ward;
     if (Wd) { const n = tagNode(Wd.tag), have = Wd.need.filter(t => tagNode(t) && tagNode(t).owner === 1).length;
       if (n && n.owner !== 1 && have < Wd.n && vis(n.x, n.y)) pill(`${Wd.short} ${have}/${Wd.n} 전엔 ×${Wd.k}`, n.x, n.y + rad(n) + 22 * S, '#ffd6d0', '#ff9a8a99', 9); }
@@ -3629,7 +3636,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   $('pSet').addEventListener('click', gesture(() => { feel('tick'); showSettings(); }));
   // ----- dev mode: memos taken anywhere, with the screen and battle state, gathered on the home screen to copy in one go -----
   // ----- patch log: what changed in each mission, shown only in dev mode so a playtest can check it -----
-  const PATCH_LATEST = 'v95';
+  const PATCH_LATEST = 'v96';
   const PATCH_LOG = {
     ar1: [['v76', ['적 대기 25→12초', '목표 T 병력 34→54']]],
     ar2: [['v76', ['적 대기 35→18초', '목표 K 병력 26→42']]],
@@ -3648,11 +3655,11 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     nx1: [['v87', ['새 미션: 바이킹 롱십(바다 1.5배)·민병(땅 0.6배), 수도원 5곳 약탈']]],
     nx2: [['v87', ['새 미션: 배 묶기 — 가운데 배는 0.3배, 끝 배부터 떼어 내기']]],
     nx3: [['v87', ['새 미션: 다리 방어 2배, 다리 밑 여울을 쥐면 풀림, 30초마다 갑옷 부대 +25']]],
-    nx6: [['v90', ['새 미션: 얼음 바다 — 얼어 있는 해협을 걸어서 건너요. 120초부터 녹고, 녹으면 덴마크 함대가 풀려나요']]],
-    nx7: [['v90', ['새 미션: 밀물 1.6배·썰물 0.35배, 쇠사슬, 나포한 로열 찰스 호를 본진까지 끌고 오기']]],
+    nx6: [['v96', ['덴마크 함대가 얼음에 갇힌 모습 표시 · 얼음이 다 녹아 건널 길이 끊기면 바로 실패']], ['v90', ['새 미션: 얼음 바다 — 얼어 있는 해협을 걸어서 건너요. 120초부터 녹고, 녹으면 덴마크 함대가 풀려나요']]],
+    nx7: [['v96', ['쇠사슬 포대와 쉬어니스를 빼앗기면 영국군이 되찾으러 와요(공방전)']], ['v90', ['새 미션: 밀물 1.6배·썰물 0.35배, 쇠사슬, 나포한 로열 찰스 호를 본진까지 끌고 오기']]],
     nx8: [['v95', ['나르바 성을 잃으면 실패 · 바람이 80초에 바뀌어요(전 100초)']], ['v90', ['새 미션: 눈보라 — 등진 쪽 1.2배·마주 본 쪽 0.4배, 러시아 포대 시야 40%. 100초에 바람이 바뀌어요']]],
-    nx9: [['v90', ['새 미션: 배 끌어 넘기기(육지 0.3배) + 무풍 때 스웨덴 범선 0.15배·포격 멈춤']]],
-    nx10: [['v90', ['새 미션: 비보르크 돌파 → 스벤스크순드 수로(40명 넘는 함대 ×0.4) · 남서풍']]],
+    nx9: [['v96', ['적 습격이 더 자주 와요 · 무풍 중 범선/노 배 속도 표시 · 바람이 돌아오면 안내']], ['v90', ['새 미션: 배 끌어 넘기기(육지 0.3배) + 무풍 때 스웨덴 범선 0.15배·포격 멈춤']]],
+    nx10: [['v96', ['봉쇄선이 더 단단하고 러시아 대함대가 60초부터 더 자주 와요']], ['v90', ['새 미션: 비보르크 돌파 → 스벤스크순드 수로(40명 넘는 함대 ×0.4) · 남서풍']]],
     nx11: [['v95', ['여울이 요새 앞에도 생기고 더 넓어져요 · 목표에 휴전 승리 조건 표시 · 신호 설명 문구 정리']], ['v90', ['새 미션: 여울 좌초 · 떠다니는 포대 · 90초 파커의 신호(선택)']]],
     nx4: [['v95', ['상선은 통행세 수단일 뿐 나포할 수 없다는 안내로 정리(잘못된 나포 설명과 그림 제거)']], ['v87', ['새 미션: 해협 통행세 — 상선이 지날 때 두 성을 쥔 쪽이 +10씩, 60 모으면 덴마크 휘청']]],
     nx5: [['v95', ['태풍이 70초에 오고 더 넓고 강해져요 · 불은 한 번 탄 배에 다시 안 붙고, 점령하면 4초 뒤 꺼지고, 폭풍우가 지나면 꺼져요 · 등불 부표도 폭풍에 꺼져요']], ['v87', ['새 미션: 한밤의 화선, 초승달 진(불이 옆 배로 번짐), 150초 북해 돌풍']]],
@@ -3683,7 +3690,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v95', DEV_VER = BUILD;
+  const BUILD = 'v96', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -5097,7 +5104,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     { id: 'nx6', name: '얼어붙은 해협', place: '대벨트 해협', race: 'iron', foes: [[2, 'iron', 0, 15]],
       todNote: '1658년 2월, 몇십 년 만의 혹한에 덴마크의 해협이 꽁꽁 얼어붙었어요.',
       brief: '1658년 겨울, 스웨덴 왕 칼 10세 구스타브는 얼어붙은 소벨트와 대벨트 해협을 걸어서 건너 코펜하겐을 위협했다. 얼음이 깨져 기병이 빠지기도 했지만, 덴마크는 결국 강화를 청했다. 얼음이 단단한 동안 해협을 건너 코펜하겐 앞 요새를 점령하라.',
-      learn: ['얼음 바다: 얼어 있는 해협은 육군이 걸어서 건너요. 덴마크 함대도 얼음에 갇혀 못 움직여요', '120초부터 얼음이 녹아요. 금 간 얼음(붉은 금·초 표시) 위의 병력은 초당 15%씩 줄고, 녹으면 그 위의 병력은 빠져요', '얼음이 녹기 시작하면 덴마크 함대가 풀려나 반격해요. 4분 안에 요새를 차지해야 해요'],
+      learn: ['얼음 바다: 얼어 있는 해협은 육군이 걸어서 건너요. 덴마크 함대도 얼음에 갇혀 못 움직여요', '120초부터 얼음이 녹아요. 금 간 얼음(붉은 금·초 표시) 위의 병력은 초당 15%씩 줄고, 녹으면 그 위의 병력은 빠져요', '얼음이 녹기 시작하면 덴마크 함대가 풀려나 반격해요. 얼음이 모두 녹기 전에 셸란 섬으로 건너가야 해요. 길이 끊기면 실패예요'],
       size: [460, 820], land: [[230, 960, 300], [230, 480, 120], [385, 300, 42], [230, -80, 260]],
       rules: { fortBuff: true,
         ice: { warn: 10, dmg: 0.15, free: ['D1', 'D2'],
@@ -5106,7 +5113,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
           freeTitle: '덴마크 함대가 풀려났어요', freeText: '얼음에 갇혀 있던 덴마크 함대가 움직이기 시작해요. 퓐 섬의 항구를 노려요. 서두르세요!', goneSay: '해협의 얼음이 모두 녹았어요' },
         script: [{ at: 20, every: 22, until: 900, do: 'raid', from: ['E', 'Z1', 'Z2'], pick: 'near', to: 'front:near', amt: 16, grow: 3, say: null },
           { at: 130, every: 20, until: 900, do: 'raid', from: ['D1', 'D2'], pick: 'near', to: 'front:near', amt: 22, grow: 4, say: null }] },
-      tour: [{ key: 'ice', f: [235, 460, 200], pic: 'ice', title: '얼어붙은 해협', text: '해협이 얼어 육군이 바다 위를 걸어서 건너요. 덴마크 함대는 얼음에 갇혀 못 움직여요. 120초부터 뒤쪽 소벨트부터 얼음이 녹고, 녹은 곳 위의 병력은 물에 빠져요. 얼음이 단단할 때 퓐 섬을 지나 셸란 섬까지 건너세요.' }],
+      tour: [{ key: 'ice', f: [235, 460, 200], pic: 'ice', title: '얼어붙은 해협', text: '해협이 얼어 육군이 바다 위를 걸어서 건너요. 덴마크 함대는 얼음에 갇혀 못 움직여요. 120초부터 뒤쪽 소벨트부터 얼음이 녹고, 녹은 곳 위의 병력은 물에 빠져요. 얼음이 단단할 때 퓐 섬을 지나 셸란 섬까지 건너세요. 얼음이 다 녹아 길이 끊기면 실패예요.' }],
       nodes: [
         [230, 735, 'castle', 1, 3, 60, 'base', 'H', '칼 10세의 군대'],
         [90, 760, 'castle', 1, 2, 22, 'yard', null, '유틀란트'],
@@ -5127,7 +5134,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       goal: { type: 'capture', tags: ['K'], limit: 260 }, stars: { time: [150, 200] },
       hints: [
         { t: '얼음 위로 걸어서 퓐 섬(오덴세)으로 건너세요. 얼음은 120초부터 녹아요.', focus: 'F1', until: 'secs:14' },
-        { t: '대벨트 얼음이 녹기 전에 셸란 섬으로! 녹은 뒤엔 건널 길이 없어요.', focus: 'K', until: 'never' },
+        { t: '대벨트 얼음이 녹기 전에 셸란 섬으로! 얼음이 다 녹아 길이 끊기면 실패예요.', focus: 'K', until: 'never' },
       ] },
     { id: 'nx7', name: '메드웨이 습격', place: '템스강 메드웨이', race: 'merchant', foes: [[2, 'iron', 0, 15]],
       brief: '1667년 6월, 네덜란드의 더 라위터르 함대가 템스강 지류 메드웨이를 거슬러 올라갔다. 쉬어니스를 빼앗고 강을 가로막은 쇠사슬을 끊은 뒤, 정박한 영국 함대를 불태우고 기함 로열 찰스 호를 끌고 돌아갔다. 밀물을 타고 올라가 로열 찰스 호를 나포하고, 썰물에 맞춰 본진까지 끌고 와라.',
@@ -5140,7 +5147,8 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
           chase: { every: 15, until: 900, from: ['E', 'U', 'R1', 'R2', 'C'], pick: 'near', amt: 18, grow: 3, say: '영국군이 로열 찰스 호를 되찾으러 몰려와요!' },
           title: '로열 찰스 호를 끌고 가요', text: '로열 찰스 호를 나포했어요! 이제 점선 물길을 따라 본진으로 끌려 내려가요. 썰물(물살이 아래로)일 때 1.6배, 밀물일 땐 0.35배예요. 영국군이 되찾으러 몰려와요. 빼앗기면 실패예요.',
           fail: '로열 찰스 호를 영국군에게 다시 빼앗겼어요.' },
-        script: [{ at: 25, every: 25, until: 900, do: 'raid', from: 'team:2', pick: 'near', to: 'front:near', amt: 16, grow: 3, say: null }]
+        script: [{ at: 25, every: 25, until: 900, do: 'raid', from: 'team:2', pick: 'near', to: 'front:near', amt: 16, grow: 3, say: null },
+          { at: 55, every: 28, until: 900, do: 'raid', from: 'team:2', pick: 'near', to: ['C', 'S'], amt: 18, grow: 2, say: null }]   // a lost chain battery or Sheerness is fought over: the English come back for it
           .concat([40, 75, 110, 145, 180, 215, 250, 285, 320].map((at, i) => ({ at, warn: 6, do: 'tide', to: i % 2 ? -Math.PI / 2 : Math.PI / 2, say: i % 2 ? '밀물이에요! 강을 거슬러 오르는 쪽이 빨라요' : '썰물이에요! 강을 따라 내려가는 쪽이 빨라요' }))) },
       tour: [{ key: 'tide', f: [230, 430, 160], pic: 'current', title: '밀물과 썰물', text: '35초마다 물살이 바뀌어요. 물살을 타면 1.6배, 거스르면 0.35배라 거의 멈춰요. 밀물(위로 흐름)에 강을 올라가고, 썰물(아래로 흐름)에 내려오세요. 화면의 물결 표시가 지금 물살 방향이에요.' },
         { key: 'gate', f: 'C', pic: 'gate', title: '쇠사슬과 로열 찰스 호', text: '쇠사슬은 쇠사슬 포대를 쥔 쪽만 지나가요. 쉬어니스에 상륙해 땅으로 포대를 치세요. 그 위 로열 찰스 호를 차지하면 점선 물길로 끌려 내려와요. 본진에 닿으면 승리예요.' }],
@@ -5201,8 +5209,9 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       learn: ['배 끌어 넘기기: 반도의 두 항구 사이 육지 길로 배를 끌어 넘겨요. 육지 위에선 0.3배로 느리지만 곶의 스웨덴 함대 포격을 피해요', '무풍: 75초부터 45초 동안 바람이 멎어요. 스웨덴 범선은 0.15배로 거의 멈추고 곶의 배들은 포를 돌리지 못해 쏘지 못해요. 노 젓는 내 갤리선은 그대로예요', '곶을 돌아가든 끌어 넘기든, 위쪽 엘레판텐 호를 차지하면 승리'],
       size: [460, 820], land: [[-20, 415, 80], [80, 415, 62], [170, 415, 56], [250, 415, 50], [-120, -20, 210]],
       rules: { fortBuff: true, speed: { me: { land: 0.3 } },
-        script: [{ at: 20, every: 22, until: 900, do: 'raid', from: ['W1', 'W2', 'W3'], pick: 'near', to: 'front:near', amt: 18, grow: 3, say: null },
-          { at: 40, every: 30, until: 900, do: 'raid', from: ['K', 'A1', 'A2'], pick: 'near', to: 'front:near', amt: 16, grow: 3, say: null },
+        script: [{ at: 20, every: 16, until: 900, do: 'raid', from: ['W1', 'W2', 'W3'], pick: 'near', to: 'front:near', amt: 18, grow: 3, say: null },
+          { at: 40, every: 22, until: 900, do: 'raid', from: ['K', 'A1', 'A2'], pick: 'near', to: 'front:near', amt: 16, grow: 3, say: null },
+          { at: 120, do: 'say', say: '바람이 돌아왔어요! 스웨덴 범선이 다시 움직이고 포를 쏴요' },
           { at: 65, do: 'calmWarn', secs: 10, dur: 45, k: 0.15, mine: 1 },
           { at: 75, do: 'calm', secs: 45, k: 0.15, mine: 1, mute: true, say: '바람이 멎었어요! 45초 동안 스웨덴 범선은 거의 멈추고, 곶의 배들은 포를 쏘지 못해요' }] },
       tour: [{ key: 'portage', f: [150, 415, 90], pic: 'portage', title: '반도 위로 배 끌어 넘기기', text: '반도 남쪽 항구에서 북쪽 항구까지 육지 길로 배를 끌어 넘길 수 있어요. 육지 위에선 0.3배로 느리지만, 곶을 지키는 스웨덴 함대의 포격을 피해요. 75초에 바람이 멎으면 곶 앞으로 곧장 빠져나갈 수도 있어요.' }],
@@ -5230,20 +5239,20 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     { id: 'nx10', name: '스벤스크순드 해전', place: '핀란드만 스벤스크순드', race: 'iron', foes: [[2, 'iron', 0, 15]],
       tod: 'dusk', todNote: '1790년 7월 9일, 백야의 여름 저녁. 거센 남서풍이 불었어요.',
       brief: '1790년 여름, 비보르크 만에 갇혔던 스웨덴 함대는 러시아 봉쇄선을 얻어맞으며 뚫고 나와, 스벤스크순드의 섬 사이 수로에 닻을 내렸다. 거센 남서풍 속에 러시아의 나사우-지겐이 대함대로 밀고 들어왔지만, 좁은 수로에 몰린 러시아 함대는 무너졌다. 발트해 역사상 가장 큰 해전. 봉쇄선을 뚫고 수로에 진을 쳐 러시아 함대를 무너뜨려라.',
-      learn: ['1단계 비보르크 돌파: 위쪽 만에 갇힌 함대를 봉쇄선 사이로 빼내 아래쪽 스벤스크순드 수로로 보내요. 빠져나간 병력이 2단계의 힘이에요', '스케리(섬 사이 수로): 물결 원 안에선 40명이 넘는 큰 함대가 제 힘을 못 써요(×0.4). 작은 배로 수로를 지키세요', '남서풍: 바람 따라(북동쪽) 1.4배, 거슬러 0.75배. 90초부터 러시아 대함대가 바람을 타고 몰려와요. 수로(물결 원) 안에서 100을 격파하면 러시아가 무너져요'],
+      learn: ['1단계 비보르크 돌파: 위쪽 만에 갇힌 함대를 봉쇄선 사이로 빼내 아래쪽 스벤스크순드 수로로 보내요. 빠져나간 병력이 2단계의 힘이에요', '스케리(섬 사이 수로): 물결 원 안에선 40명이 넘는 큰 함대가 제 힘을 못 써요(×0.4). 작은 배로 수로를 지키세요', '남서풍: 바람 따라(북동쪽) 1.4배, 거슬러 0.75배. 60초부터 러시아 대함대가 바람을 타고 몰려와요. 수로(물결 원) 안에서 100을 격파하면 러시아가 무너져요'],
       size: [460, 820], land: [[-70, 150, 195], [530, 150, 195], [345, 655, 30], [430, 600, 40], [440, 790, 44], [250, 805, 34]],
       rules: { fortBuff: true, wind: -Math.PI / 4, crowd: { zone: [[340, 690, 105]], over: 40, k: 0.4 },
-        script: [{ at: 15, every: 20, until: 110, do: 'raid', from: ['B1', 'B2', 'B3'], pick: 'near', to: 'V', amt: 14, grow: 3, say: null },
-          { at: 80, do: 'say', say: '나사우-지겐의 러시아 대함대가 남서풍을 타고 다가와요!' }]
-          .concat([90, 112, 134, 156, 178, 200].map((at, i) => ({ at, do: 'sail', team: 2, name: '러시아 대함대', to: i % 2 ? 'S2' : 'S1', route: [[-30, 860], [120, 700]], amt: 34 + i * 4, card: i === 0 ? 'russSail' : null, title: '러시아 대함대', text: '바람을 타고 러시아 함대가 수로로 몰려와요. 수로(물결 원) 안에선 큰 함대가 제 힘을 못 써요. 수로 안 섬을 지키며 깎아 내세요.' })))
+        script: [{ at: 15, every: 20, until: 140, do: 'raid', from: ['B1', 'B2', 'B3'], pick: 'near', to: 'V', amt: 14, grow: 3, say: null },
+          { at: 50, do: 'say', say: '나사우-지겐의 러시아 대함대가 남서풍을 타고 다가와요!' }]
+          .concat([60, 76, 92, 108, 124, 140].map((at, i) => ({ at, do: 'sail', team: 2, name: '러시아 대함대', to: i % 2 ? 'S2' : 'S1', route: [[-30, 860], [120, 700]], amt: 34 + i * 4, card: i === 0 ? 'russSail' : null, title: '러시아 대함대', text: '바람을 타고 러시아 함대가 수로로 몰려와요. 수로(물결 원) 안에선 큰 함대가 제 힘을 못 써요. 수로 안 섬을 지키며 깎아 내세요.' })))
           .concat([{ at: 120, every: 24, until: 900, do: 'raid', from: ['R', 'R2', 'R3'], pick: 'near', to: 'front:near', amt: 24, grow: 4, say: null }]) },
-      tour: [{ key: 'skerry', f: [340, 690, 105], pic: 'crowd', title: '섬 사이 수로', text: '스벤스크순드의 섬 사이 수로예요. 물결 원 안에선 40명이 넘는 큰 함대가 제 힘을 못 써요(×0.4). 위쪽 비보르크 만의 함대를 봉쇄선 사이로 빼내 이 수로에 모으세요. 90초부터 러시아 대함대가 몰려와요.' }],
+      tour: [{ key: 'skerry', f: [340, 690, 105], pic: 'crowd', title: '섬 사이 수로', text: '스벤스크순드의 섬 사이 수로예요. 물결 원 안에선 40명이 넘는 큰 함대가 제 힘을 못 써요(×0.4). 위쪽 비보르크 만의 함대를 봉쇄선 사이로 빼내 이 수로에 모으세요. 60초부터 러시아 대함대가 몰려와요.' }],
       nodes: [
         [230, 105, 'island', 1, 3, 90, 'base', 'V', '비보르크의 스웨덴 함대'],
         [175, 190, 'island', 1, 2, 30, 'yard'],
-        [150, 300, 'island', 2, 2, 40, 'fort', 'B1', '러시아 봉쇄선', { still: true, anchor: true }],
-        [230, 318, 'island', 2, 2, 46, 'fort', 'B2', '러시아 봉쇄선', { still: true, anchor: true }],
-        [310, 300, 'island', 2, 2, 40, 'fort', 'B3', '러시아 봉쇄선', { still: true, anchor: true }],
+        [150, 300, 'island', 2, 2, 58, 'fort', 'B1', '러시아 봉쇄선', { still: true, anchor: true }],
+        [230, 318, 'island', 2, 2, 66, 'fort', 'B2', '러시아 봉쇄선', { still: true, anchor: true }],
+        [310, 300, 'island', 2, 2, 58, 'fort', 'B3', '러시아 봉쇄선', { still: true, anchor: true }],
         [90, 460, 'island', 0, 1, 10],
         [370, 450, 'island', 0, 1, 10],
         [280, 640, 'island', 1, 2, 20, null, 'S1', '스벤스크순드'],
@@ -6698,7 +6707,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     else if (g.type === 'hold') { const lb = g.tags.map(tagNode).map(n => n.label || KIND[n.kind]).join('·'); t = holdSince === null ? `${lb} 점령 후 ${g.secs}초 지키기` : `${lb} 지키기 · ${Math.ceil(Math.max(0, g.secs - (clock - holdSince)))}초`; }
     else t = `병력 ${Math.round(g.p * 100)}% · 지금 ${Math.round(((tot && tot.share[1]) || 0) * 100)}%`;
     if (g.limit) t += ` · 제한 ${fmt(Math.max(0, g.limit - clock))}`;
-    if (calmOn()) t += ` · 무풍 ${Math.ceil(RULES.calm.until - clock)}초`;
+    if (calmOn()) t += ` · 무풍 ${Math.ceil(RULES.calm.until - clock)}초 · 범선 ×${RULES.calm.k ?? 0.3} · 노 젓는 배 ×${RULES.calm.mine ?? 1}`;
     if (RULES.ice && !gst.iceGone) { const nx = RULES.ice.cells.filter(c => !c.melted).map(c => c[3]).sort((a, b) => a - b)[0]; if (nx !== undefined) t += nx - RULES.ice.warn > clock ? ` · 해빙 ${Math.ceil(nx - RULES.ice.warn - clock)}초` : ` · 얼음 녹는 중`; }
     if (RULES.fury && clock < RULES.fury.until) t += ` · 총공세 ${Math.ceil(RULES.fury.until - clock)}초 · 포대 ${RULES.signal.batt.filter(x => tagNode(x) && tagNode(x).owner === 1).length}/${Math.ceil(RULES.signal.batt.length / 2)}곳 차지하면 휴전 승리` + (RULES.signal.truceSince != null ? ` · 휴전 협상 ${Math.max(0, Math.ceil(8 - (clock - RULES.signal.truceSince)))}초` : '');
     if (RULES.signal && !RULES.signal.shown) t += ` · 신호 ${Math.ceil(Math.max(0, RULES.signal.at - clock))}초`;
@@ -7314,6 +7323,12 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     if (!alive(1)) return end(false, wonOnce ? null : '모든 거점을 잃었어요.');
     if (g.guard) { const lt = g.guard.find(t => !tagNode(t) || tagNode(t).owner !== 1); if (lt) { const n = tagNode(lt), lb = (n && n.label) || '지켜야 할 거점'; return end(false, `${lb}${eul(lb)} 잃었어요.`); } }
     if (gst.capsized) return end(false, RULES.vasa.fail || '바사 호가 돌풍에 뒤집혔어요.');
+    if (RULES.ice && gst.iceGone && mission.goal.tags) {   // the ice is all gone and none of your strongholds can reach the goal any more: nothing left to do
+      const goals = mission.goal.tags.map(tagNode).filter(Boolean), seen = new Set(), q = nodes.filter(n => n.owner === 1); q.forEach(n => seen.add(n));
+      let ok = goals.some(n => n.owner === 1) || fleets.some(f => f.owner === 1 && !f.done);
+      while (q.length && !ok) { const n = q.pop(); for (const e of n.adj || []) if (!seen.has(e.n)) { seen.add(e.n); if (goals.includes(e.n)) ok = true; q.push(e.n); } }
+      if (!ok) return end(false, '얼음이 모두 녹아 건널 길이 끊겼어요. 얼음이 단단할 때 건너야 했어요.');
+    }
     if (RULES.vasa && (() => { const v = tagNode(RULES.vasa.tag); return !v || v.owner !== 1; })()) return end(false, '바사 호를 잃었어요.');
     if (RULES.escape && (gst.esc || 0) >= RULES.escape.n) return end(false, RULES.escape.fail || '적 함대가 빠져나갔어요.');
     if (RULES.tow && RULES.tow.on && (() => { const n = tagNode(RULES.tow.tag); return !n || n.owner !== 1; })()) return end(false, RULES.tow.fail || '나포한 배를 다시 빼앗겼어요.');
