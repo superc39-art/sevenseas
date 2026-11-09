@@ -3641,7 +3641,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v92', DEV_VER = BUILD;
+  const BUILD = 'v93', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -6631,7 +6631,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     $('goal').hidden = false; stage.classList.add('has-goal');
     beginPlay(); showCoach(); goalUi();
     toast(`${m.place} · ${m.name}`);
-    { const cs = mechCards(m); $('pTour').hidden = !cs.length; if (cs.length && !tourSeen[m.id]) { tourSeen[m.id] = 1; store.set('tourSeen', tourSeen); openTour(cs, { start: true }); } }
+    { const all = mechCards(m), cs = mechCards(m, false); $('pTour').hidden = !all.length; if (cs.length && !tourSeen[m.id]) { tourSeen[m.id] = 1; store.set('tourSeen', tourSeen); openTour(all, { start: true }); } }
   }
   function goalText(tot) {
     const g = mission.goal; let t;
@@ -6676,7 +6676,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const nodeF = t => { const n = typeof t === 'string' ? tagNode(t) : t; return n ? { x: n.x, y: n.y, r: rad(n) + 22 } : null; };
   const nm = t => { const n = tagNode(t); return n ? n.label || KIND[n.kind] : t; };
   // the default card for every mechanism a mission can carry; a mission can override a card (m.tour) or add its own
-  function mechCards(m) {
+  function mechCards(m, withSkills = true) {
     const R = RULES, out = [], add = (key, f, title, text) => out.push({ key, f, title, text });
     const sc = R.script || [], first = d => sc.find(e => e.do === d);
     const mineFort = nodes.find(n => n.owner === 1 && n.type === 'fort');
@@ -6715,7 +6715,30 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     // mission-specific cards replace the default of the same key, or are added in front
     const own = (m.tour || []).map(c => ({ ...c, f: Array.isArray(c.f) ? { x: c.f[0], y: c.f[1], r: c.f[2] } : typeof c.f === 'string' ? nodeF(c.f) : c.f || null }));
     const merged = out.map(c => { const o = own.find(o => o.key === c.key); return o ? { ...o, f: o.f || c.f } : c; }).concat(own.filter(o => !out.some(c => c.key === o.key)));
-    return merged.slice(0, 5);
+    const res = merged.slice(0, 5);
+    if (withSkills) {   // race skills in play: mine first, then each foe race that really casts (levels with no skill AI are skipped)
+      const SK = {
+        lantern:  ['가는 중인 부대가 남은 길 절반을 단숨에 전진', '먼 길 가는 큰 부대에', '내 거점 코앞에 적 부대가 갑자기 나타나요'],
+        coral:    ['8초 동안 내 거점 전부 생산 두 배', '병력을 모으는 중에', '적 생산이 두 배인 8초 동안은 치지 마세요'],
+        iron:     ['거점 하나가 20초 동안 받는 공격 −75%', '버텨야 할 거점에', '철벽이 선 거점은 피해서 다른 곳을 치세요'],
+        corsair:  ['12초 동안 점령할 때마다 병력 +15', '작은 거점을 연달아 먹을 때', '12초 안에 거점을 연달아 먹히면 금방 불어나요'],
+        fog:      ['10초 동안 내 부대가 교전을 피해 지나가요', '적진 한가운데를 뚫을 때', '안개 속 부대가 막지 못하고 지나가요 · 도착지를 지키세요'],
+        whale:    ['적 거점 하나의 병력 −30%', '가장 센 거점에', '병력을 한 거점에 너무 쌓아 두지 마세요'],
+        thunder:  ['적 거점 하나에 번개 한 방 (18 + 단계×5)', '병력 적은 거점을 비울 때', '번개가 자주 떨어져요 · 병력을 한곳에 몰지 마세요'],
+        ghost:    ['병력 15 이하 중립 거점을 즉시 내 것으로', '중립 거점이 가까울 때', '중립 거점을 갑자기 빼앗겨요 · 작은 거점도 서둘러 차지하세요'],
+        merchant: ['내 거점마다 병력 +6 (합계 최대 60)', '거점이 많을 때', '거점이 많을수록 한꺼번에 병력이 늘어요'],
+        abyss:    ['내 거점 둘레의 적 부대 절반을 삼켜요', '들이닥치는 적을 맞을 때', '거점 근처에서 맞붙으면 부대가 반 토막 나요'],
+        dragon:   ['대상 거점 둘레 적 부대 60% 소멸, 거점 −8', '적이 몰려 있을 때', '몰려 가던 부대가 한꺼번에 사라져요 · 흩어서 보내세요'],
+        star:     ['다른 팀 거점 3곳에 각각 −12', '여러 적이 있을 때', '거점 세 곳이 동시에 깎여요 · 병력 여유를 두세요'],
+      };
+      const add2 = (rid, mine, o) => { const r = RACES.find(x => x.id === rid), s = r && SK[rid]; if (!s) return;
+        const f = mine ? null : nodeF(nodes.find(n => n.owner === o && n.type !== 'light') || nodes.find(n => n.owner === o));
+        res.push({ key: 'sk_' + rid, f, title: `${mine ? '내 기술' : '적 기술'} · ${r.skill.name}`, text: mine ? `${r.name} · ${r.skill.cd}초마다. ${s[0]}. 쓰기 좋은 때: ${s[1]}.` : `${r.name} · ${r.skill.cd}초마다. ${s[2]}.` }); };
+      add2(m.race, true);
+      const seen = {};
+      for (const [o, rid, lvl] of m.foes || []) { if (seen[rid] || !DIFF[lvl] || !DIFF[lvl].skill) continue; seen[rid] = 1; add2(rid, false, o); }
+    }
+    return res;
   }
   // ----- small pictures on the tour cards: one flat sketch per mechanism, in the map's own colours -----
   const PIC = (() => {
@@ -6828,6 +6851,22 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     P.pincer = g => { bg(g); blob(g, 150, 60, 30, 20); fort(g, 150, 58, 1.2, C.foe); ship(g, 50, 60, 1.2, C.me, 0); arrow(g, 66, 60, 116, 60, C.me, 3); ship(g, 150, 110, 1.2, C.me, -1.57); arrow(g, 150, 100, 150, 84, C.me, 3); tag(g, 236, 20, '두 방향 ×1.3', C.gold); };
     P.punish = g => { bg(g); blob(g, 80, 60, 46, 30); fort(g, 80, 58, 1.4, C.me); tag(g, 80, 104, '병력을 다 빼면', C.me); arrow(g, 250, 60, 110, 60, C.foe, 3); ship(g, 260, 60, 1.3, C.foe, 3.14); tag(g, 220, 24, '빈 곳을 노려요', C.foe); };
     P.canalOpen = P.canal; P.causewayDone = P.causeway; P.allyLost = P.ally;
+    // ----- race skills: one glance each (own = amber, the foe's = red) -----
+    const bolt = (g, x, y, h, col = '#ffe58a') => { g.strokeStyle = col; g.lineWidth = 3.5; g.lineJoin = 'round'; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 9, y + h * 0.4); g.lineTo(x + 4, y + h * 0.5); g.lineTo(x - 6, y + h); g.stroke(); g.lineJoin = 'miter'; };
+    const swirl = (g, x, y, r, col = 'rgba(200,245,255,0.8)') => { g.strokeStyle = col; g.lineWidth = 2.5; for (let k = 0; k < 3; k++) { g.beginPath(); for (let a = 0; a < 8; a += 0.25) { const q = r * (0.2 + a / 9) + k * 3; g.lineTo(x + Math.cos(a + k * 2.1) * q, y + Math.sin(a + k * 2.1) * q * 0.62); } g.stroke(); } };
+    const coin = (g, x, y) => { g.fillStyle = C.gold; g.strokeStyle = C.ink; g.lineWidth = 1; g.beginPath(); g.arc(x, y, 5, 0, 6.283); g.fill(); g.stroke(); };
+    P.sk_lantern = g => { bg(g); ship(g, 50, 60, 1.3, C.me, 0); g.globalAlpha = 0.4; ship(g, 130, 60, 1.3, C.me, 0); g.globalAlpha = 1; ship(g, 210, 60, 1.3, C.me, 0); arrow(g, 70, 60, 120, 60, C.gold, 3); arrow(g, 150, 60, 196, 60, C.me, 2); g.strokeStyle = C.gold; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(130, 40); g.lineTo(130, 80); g.stroke(); g.setLineDash([]); tag(g, 150, 18, '남은 길 절반 ⚡', C.gold); fort(g, 268, 70, 0.9, C.me); };
+    P.sk_coral = g => { bg(g); for (const x of [60, 150, 240]) { blob(g, x, 68, 34, 20); fort(g, x, 62, 0.9, C.me); tag(g, x, 26, '×2', C.gold); } tag(g, 150, 106, '8초 동안 생산 두 배', C.gold); };
+    P.sk_iron = g => { bg(g); blob(g, 190, 62, 50, 30); fort(g, 190, 58, 1.4, C.me); g.strokeStyle = '#9fd0ff'; g.lineWidth = 4; g.beginPath(); g.arc(190, 54, 40, 0, 6.283); g.stroke(); ship(g, 60, 56, 1.3, C.foe, 0); arrow(g, 80, 56, 140, 56, C.foe, 3); tag(g, 118, 30, '튕겨요', C.foe); tag(g, 190, 106, '받는 공격 −75%', '#9fd0ff'); };
+    P.sk_corsair = g => { bg(g); blob(g, 200, 62, 46, 28); fort(g, 200, 58, 1.3, C.me); ship(g, 60, 60, 1.4, C.me, 0); arrow(g, 80, 60, 150, 60, C.me, 3); for (let k = 0; k < 5; k++) coin(g, 228 + (k % 3) * 8, 26 - (k % 2) * 8 - Math.floor(k / 3) * 8); tag(g, 120, 26, '점령할 때마다', C.gold); tag(g, 150, 104, '+15명 · 12초', C.gold); };
+    P.sk_fog = g => { bg(g); for (const y of [34, 86]) ship(g, 150, y, 1.3, C.foe, 3.14, { still: true }); fog(g, 150, 60, 90); ship(g, 50, 60, 1.3, C.me, 0); arrow(g, 70, 60, 270, 60, C.me, 3); tag(g, 150, 104, '10초 동안 교전 없이 통과', C.foam); };
+    P.sk_whale = g => { bg(g); blob(g, 190, 62, 50, 30); fort(g, 190, 58, 1.4, C.foe); g.fillStyle = 'rgba(160,225,245,0.55)'; g.beginPath(); g.moveTo(40, 100); for (let x = 40; x <= 250; x += 10) g.lineTo(x, 70 - Math.sin((x - 40) / 28) * 14 - (x - 40) / 8); g.lineTo(250, 100); g.closePath(); g.fill(); tag(g, 70, 24, '해일', C.foam); tag(g, 200, 106, '병력 −30%', C.foe); };
+    P.sk_thunder = g => { bg(g, true); blob(g, 150, 84, 52, 22); fort(g, 150, 80, 1.3, C.foe); g.fillStyle = '#3c4a5c'; g.beginPath(); g.ellipse(150, 12, 70, 14, 0, 0, 6.283); g.fill(); bolt(g, 150, 18, 52); tag(g, 238, 50, '18+단계×5', '#ffe58a'); tag(g, 62, 50, '번개 한 방', '#ffe58a'); };
+    P.sk_ghost = g => { bg(g, true); blob(g, 80, 64, 44, 26); fort(g, 80, 60, 1.2, '#9aa6ad'); tag(g, 80, 24, '중립 ≤15명', '#9aa6ad'); arrow(g, 130, 60, 180, 60, '#c9b6ff', 3); blob(g, 220, 64, 44, 26); fort(g, 220, 60, 1.2, C.me); g.fillStyle = 'rgba(200,185,255,0.45)'; g.beginPath(); g.ellipse(220, 40, 14, 18, 0, 0, 6.283); g.fill(); tag(g, 220, 104, '즉시 내 거점', C.me); };
+    P.sk_merchant = g => { bg(g); for (const x of [60, 150, 240]) { blob(g, x, 70, 34, 20); fort(g, x, 64, 0.9, C.me); coin(g, x - 8, 28); tag(g, x + 12, 28, '+6', C.gold); } tag(g, 150, 106, '내 거점마다 병력 추가', C.gold); };
+    P.sk_abyss = g => { bg(g, true); swirl(g, 150, 60, 52); for (const [x, y] of [[100, 40], [200, 80], [196, 34]]) ship(g, x, y, 1.1, C.foe, 0.9, { wreck: true }); blob(g, 150, 60, 14, 9); fort(g, 150, 58, 0.7, C.me); tag(g, 56, 100, '적 부대 절반 삼킴', C.foam); };
+    P.sk_dragon = g => { bg(g); g.fillStyle = 'rgba(200,245,255,0.7)'; g.beginPath(); g.moveTo(140, 110); g.quadraticCurveTo(150, 60, 132, 14); g.lineTo(168, 14); g.quadraticCurveTo(150, 60, 160, 110); g.closePath(); g.fill(); for (const [x, y] of [[90, 60], [208, 40], [214, 86]]) { g.globalAlpha = 0.5; ship(g, x, y, 1.1, C.foe, 0.5); g.globalAlpha = 1; } tag(g, 56, 20, '용오름', C.foam); tag(g, 236, 108, '60% 소멸', C.foe); };
+    P.sk_star = g => { bg(g, true); for (const x of [60, 150, 240]) { blob(g, x, 92, 32, 14); fort(g, x, 88, 0.8, C.foe); g.strokeStyle = '#fff3b0'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(x + 16, 10); g.lineTo(x, 66); g.stroke(); g.fillStyle = '#fff3b0'; g.beginPath(); g.arc(x, 68, 5, 0, 6.283); g.fill(); tag(g, x, 40, '−12', C.foe); } };
     const keyOf = { tide: 'current', erupt: 'volcano', storm: 'storm', canal: 'canal', causeway: 'causeway', ally: 'ally', allyLost: 'ally', relief: 'relief', rout: 'morale' };
     return (key, opt = {}) => { const k = opt.greek && key === 'fire' ? 'greek' : keyOf[key] || key; return P[k] || null; };
   })();
