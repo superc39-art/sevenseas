@@ -642,6 +642,14 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       </div>
     </div>
 
+    <div class="overlay" id="exitOv" hidden>
+      <div class="panel">
+        <h1>종료할까요?</h1>
+        <p>일곱 바다 쟁탈전을 끝내고 나갈까요? 진행 기록은 저장돼 있어요.</p>
+        <div class="confirm-row"><button class="btn alt" id="exitNo" type="button">계속 하기</button><button class="btn" id="exitYes" type="button">종료</button></div>
+      </div>
+    </div>
+
     <div class="overlay" id="pauseOv" hidden>
       <div class="panel">
         <h1>일시정지</h1>
@@ -3641,7 +3649,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v93', DEV_VER = BUILD;
+  const BUILD = 'v94', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -3731,7 +3739,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     const btn = id => { const e = $(id); return e && !e.hidden && e.offsetParent !== null ? e : null; };
     const step = () => {
       if (state === 'tour' || state === 'choice') return true;   // a mechanism card or a choice is up: it closes with its own buttons
-      const order = [['memoOv', 'memoCancel'], ['memoListOv', 'memoListBack'], ['guideOv', 'guideBack'], ['introOv', 'introSkip'], ['setOv', 'setBack'],
+      const order = [['exitOv', 'exitNo'], ['memoOv', 'memoCancel'], ['memoListOv', 'memoListBack'], ['guideOv', 'guideBack'], ['introOv', 'introSkip'], ['setOv', 'setBack'],
         ['winOv', 'contBtn'], ['pauseOv', 'restartNo', 'resumeBtn'], ['endOv', 'mapBtn', 'setBtn'], ['brief', 'bBack'], ['camp', 'chartBack', 'campBack'],
         ['shop', 'shopBack'], ['achOv', 'achBack'], ['menu', 'freeBack']];
       for (const [ov, ...bs] of order) if (shown(ov)) { for (const b of bs) { const e = btn(b); if (e) { e.click(); return true; } } return true; }
@@ -3751,9 +3759,10 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       const now = Date.now();
       if (step()) { armed = 0; lastStep = now; return; }
       if (now - lastStep < 1200) return;   // just arrived at the title by pressing back: ignore the extra quick presses
-      if (now - armed < 2000 || !have) { leaving = true; try { history.go(-(have + 1)); } catch (e) {} return; }   // second press at the title: leave
-      armed = now; toast('뒤로 버튼을 한 번 더 누르면 나가요');
+      armed = now; $('exitOv').hidden = false; feel('tick');   // at the title: ask before leaving
     });
+    $('exitNo').addEventListener('click', () => { $('exitOv').hidden = true; });
+    $('exitYes').addEventListener('click', () => { leaving = true; $('exitOv').hidden = true; try { history.go(-(have + 1)); } catch (e) {} try { window.close(); } catch (e) {} });
   }
   $('setBack').addEventListener('click', () => { $('setOv').hidden = true; xferMode = null; $('xferBox').hidden = $('xferRow').hidden = true; });
   // moving your save between devices or addresses: every stored key as one text code you copy out and paste back in
