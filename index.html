@@ -1699,7 +1699,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   }
   function ignite(n) {
     if (n.burnUntil > clock) { n.burnUntil = clock + 14; return; }
-    n.burnUntil = clock + 14; n.spreadT = 1.4; burst(n.x, n.y, '#ff7a2c', 18);
+    n.burnUntil = clock + 14; n.spreadT = 1.4; n.burnedOnce = true; burst(n.x, n.y, '#ff7a2c', 18);
     if (n.owner && n.owner !== 1) popText(n.x, n.y - rad(n) - 8, '불붙음!', '#ffb08a');
   }
   let convoys = [], script = [], storms = [], punishAt = 0, punishCd = 0;
@@ -2064,6 +2064,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
 
   function capture(n, o, prev) {
     n.owner = o; n.shield = 0; clearRoute(n);
+    if (n.burnUntil > clock + 4) { n.burnUntil = clock + 4; popText(n.x, n.y - rad(n) - 8, '불길을 잡아요', '#bfe6ff'); }   // the boarding crew fights the fire
     if (P[o].plunder > clock) n.count += 15;
     ring(n.x, n.y, rad(n), TEAM[o].c); burst(n.x, n.y, TEAM[o].c, 16);
     if (prev && race(prev).id === 'ghost') { const back = nearestOwn(prev, n); if (back) { back.count += 8; ring(back.x, back.y, rad(back), TEAM[prev].c, 0.5); } }
@@ -2318,6 +2319,8 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     for (const f of fleets) if (f.chasing && !f.done) chaseStep(f, g);
     for (const c of convoys) if (!c.done) convoyStep(c, g);
     convoys = convoys.filter(c => !c.done);
+    if (storms.length) for (const n of nodes) { if (n.burnUntil > clock && stormAt(n.x, n.y)) { n.burnUntil = clock; popText(n.x, n.y - rad(n) - 8, '폭풍우가 불을 껐어요', '#bfe6ff'); } }   // rain puts out burning ships
+    if (storms.length) for (const b of buoys) if (stormAt(b.x, b.y)) b.amt -= (0.8 + b.amt * 0.2) * g;   // lantern buoys are blown out
     if (storms.length) for (const n of nodes) { if (!n.owner) continue; const st = stormAt(n.x, n.y); if (st && st.hit) { const l = n.count * st.hit * g; n.count -= l; if (n.owner === 1) gst.lostTroops = (gst.lostTroops || 0) + l; } }   // a fierce storm also batters the garrisons it passes over
     if (storms.length) for (const f of fleets) { if (f.done || f.wait > 0) continue; const q = fpos(f), st = stormAt(q.x, q.y); if (st) { const l = Math.max(0.15 * g, f.amt * (st.dmg || 0.03) * g); f.amt -= l; if (f.owner === 1) gst.lostTroops = (gst.lostTroops || 0) + l; } }
     if (RULES.desert) for (const f of fleets) { if (f.done || f.wait > 0 || f.chasing || fmode(f) !== 0) continue; const q = fpos(f); if (inDesert(q.x, q.y) && !oasisNear(q.x, q.y, f.owner)) { const l = Math.max(0.08 * g, f.amt * DESERT_LOSS * g); f.amt -= l; if (f.owner === 1) gst.lostTroops = (gst.lostTroops || 0) + l; } }
@@ -2345,7 +2348,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       n.count = Math.max(0, n.count - Math.max(0.6, n.count * 0.07) * g);
       n.spreadT = (n.spreadT || 0) - g;
       if (n.spreadT <= 0) { n.spreadT = 1.6;
-        for (const m of nodes) if (m !== n && m.chain && n.chain && !(m.burnUntil > clock) && dist(m, n) < 120) {
+        for (const m of nodes) if (m !== n && m.chain && n.chain && !(m.burnUntil > clock) && !m.burnedOnce && dist(m, n) < 120) {   // a ship that already burned once does not catch again: the fire dies out
           const down = RULES.wind == null ? 1 : Math.cos(Math.atan2(m.y - n.y, m.x - n.x) - RULES.wind);
           if (down > 0.15) ignite(m);
         } }
@@ -2932,6 +2935,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     }
 
     // strongholds
+    const lblQ = [];   // name tags are laid out after all strongholds are drawn, so close neighbours never stack on each other
     for (const n of nodes) {
       if (!vis(n.x, n.y)) continue;
       if (drawHid(n)) {   // night: a stronghold you have found before stays on the chart as a faint outline (no colour, no number, can't be targeted)
@@ -2980,7 +2984,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       }
       typeBadge(ctx, n.type, x - r * 0.98, y + r * 0.72, Math.max(r * 0.3, 5.5 * S), n.owner ? c : '#8ea2b0');
       const lbl = n.label || typeLabel(n);
-      if (lbl && z > (n.label ? 0.4 : 0.72)) pill(lbl, x, y + r * 1.45 + 6 * S, '#c3d0d8', c + '66');
+      if (lbl && z > (n.label ? 0.4 : 0.72)) lblQ.push({ n, lbl, x, y, r, c });
       if (sel.has(n) || tapSel === n) {
         ctx.strokeStyle = '#dde8ef'; ctx.lineWidth = 2 * S; ctx.setLineDash([4 * S, 5 * S]);
         ctx.beginPath(); ctx.arc(x, y, r * 1.6, time * 1.5, time * 1.5 + 6.28); ctx.stroke(); ctx.setLineDash([]);
@@ -2988,6 +2992,29 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       if (aiming && validTarget(1, n)) {
         ctx.strokeStyle = '#ffb547'; ctx.lineWidth = 2.5 * S; ctx.globalAlpha = 0.55 + 0.45 * Math.sin(time * 5);
         ctx.beginPath(); ctx.arc(x, y, r * 1.75, 0, 6.28); ctx.stroke(); ctx.globalAlpha = 1;
+      }
+    }
+    if (lblQ.length) {
+      ctx.font = `600 ${12 * S}px "Gowun Dodum", system-ui, sans-serif`;
+      const h = 20 * S, placed = [], hits = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+      lblQ.sort((a, b) => a.y - b.y);
+      const blk = (x, y, w, hh = h) => placed.push({ x0: x - w / 2, x1: x + w / 2, y0: y - hh / 2, y1: y + hh / 2 });   // pills drawn later under a stronghold keep their place
+      try {
+        if (RULES.lash) for (const n of lashLive()) if (vis(n.x, n.y)) blk(n.x, n.y + rad(n) + 16, 84 * S);
+        { const Br = RULES.bridge, n = Br && tagNode(Br.tag); if (n && n.owner && n.owner !== 1 && vis(n.x, n.y)) blk(n.x, n.y + rad(n) + 16, 130 * S); }
+        { const Vs = RULES.vasa, v = Vs && !Vs.out && tagNode(Vs.tag); if (v && vis(v.x, v.y)) blk(v.x, v.y + rad(v) + 22, 90 * S, 40 * S); }
+      } catch (e) {}
+      for (const q of lblQ) {
+        const w = ctx.measureText(q.lbl).width + 14 * S, g0 = q.r * 1.45 + 6 * S, step = h + 2 * S;
+        let best = null;
+        for (const dy of [g0, -g0, g0 + step, -g0 - step, g0 + 2 * step, -g0 - 2 * step]) {
+          const R = { x0: q.x - w / 2, x1: q.x + w / 2, y0: q.y + dy - h / 2, y1: q.y + dy + h / 2 };
+          if (placed.some(p => hits(R, p))) continue;
+          if (nodes.some(o => o !== q.n && hits(R, { x0: o.x - rad(o), x1: o.x + rad(o), y0: o.y - rad(o), y1: o.y + rad(o) }))) continue;   // not on top of another stronghold either
+          best = { dy, R }; break;
+        }
+        if (!best) best = { dy: g0, R: { x0: q.x - w / 2, x1: q.x + w / 2, y0: q.y + g0 - h / 2, y1: q.y + g0 + h / 2 } };
+        placed.push(best.R); pill(q.lbl, q.x, q.y + best.dy, '#c3d0d8', q.c + '66');
       }
     }
 
@@ -3211,6 +3238,13 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(v.x - w / 2, v.y + rad(v) + 10, w, 6); ctx.fillStyle = over ? '#ff6a5a' : u > 0.8 ? '#ffd27a' : '#8fd8a0'; ctx.fillRect(v.x - w / 2, v.y + rad(v) + 10, w * Math.min(1, u), 6);
       pill(`${Math.round(v.count)}/${G.safe}${over ? ' 위험!' : ''}`, v.x, v.y + rad(v) + 26, over ? '#ffd0c8' : '#ffffff', over ? '#ff6a5a' : '#ffffff66', 10);
       if (Vs.i < Vs.wps.length - 1) { ctx.setLineDash([5 * S, 6 * S]); ctx.strokeStyle = 'rgba(255,230,168,0.5)'; ctx.lineWidth = 2 * S; ctx.beginPath(); ctx.moveTo(v.x, v.y); for (let k = Vs.i + 1; k < Vs.wps.length; k++) ctx.lineTo(Vs.wps[k][0], Vs.wps[k][1]); ctx.stroke(); ctx.setLineDash([]); } } }
+    { const Vs = RULES.vasa, v = Vs && !Vs.out && Vs.gust.nextAt !== undefined && tagNode(Vs.tag);   // the gust: wind streaks sweep over the channel before and as it strikes
+      if (v) { const G = Vs.gust, left = G.nextAt - clock, hit = G.hitAt !== undefined && clock - G.hitAt < 1.4;
+        if ((G.warned && left > 0) || hit) { const a = hit ? 1 - (clock - G.hitAt) / 1.4 : Math.min(1, (G.warn - left) / 2 + 0.25), sp = hit ? 520 : 300;
+          ctx.save(); const dk = ctx.createRadialGradient(v.x, v.y, 40 * S, v.x, v.y, 300 * S); dk.addColorStop(0, 'rgba(20,34,48,0)'); dk.addColorStop(1, `rgba(20,34,48,${0.35 * a})`); ctx.fillStyle = dk; ctx.fillRect(v.x - 320 * S, v.y - 320 * S, 640 * S, 640 * S);
+          ctx.strokeStyle = `rgba(235,245,250,${0.6 * a})`; ctx.lineWidth = 2.2 * S; ctx.lineCap = 'round';
+          for (let k = 0; k < 30; k++) { const sx = ((k * 97 + time * sp) % 560) - 60, sy = (k * 61) % 400, x0 = v.x - 280 + sx, y0 = v.y - 200 + sy; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + 52 * S, y0 + 16 * S); ctx.stroke(); }
+          ctx.restore(); if (!hit) pill(`돌풍 ${Math.ceil(left)}초 전`, v.x, v.y - rad(v) - 24 * S, '#ffd0c8', '#ff9a8a88', 10); } } }
     { const E = RULES.escape; if (E && vis(E.at[0], E.at[1])) {   // the open sea the trapped fleet is making for
       const [x, y] = E.at, hot = E.open; ctx.strokeStyle = hot ? `rgba(255,120,110,${0.55 + 0.3 * Math.sin(time * 5)})` : 'rgba(255,150,140,0.4)'; ctx.lineWidth = 2 * S; ctx.setLineDash([5 * S, 5 * S]); ctx.lineDashOffset = -time * 8;
       ctx.beginPath(); ctx.arc(x, y, 22, 0, 6.283); ctx.stroke(); ctx.setLineDash([]); ctx.lineDashOffset = 0;
@@ -3595,7 +3629,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   $('pSet').addEventListener('click', gesture(() => { feel('tick'); showSettings(); }));
   // ----- dev mode: memos taken anywhere, with the screen and battle state, gathered on the home screen to copy in one go -----
   // ----- patch log: what changed in each mission, shown only in dev mode so a playtest can check it -----
-  const PATCH_LATEST = 'v90';
+  const PATCH_LATEST = 'v95';
   const PATCH_LOG = {
     ar1: [['v76', ['적 대기 25→12초', '목표 T 병력 34→54']]],
     ar2: [['v76', ['적 대기 35→18초', '목표 K 병력 26→42']]],
@@ -3616,13 +3650,13 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     nx3: [['v87', ['새 미션: 다리 방어 2배, 다리 밑 여울을 쥐면 풀림, 30초마다 갑옷 부대 +25']]],
     nx6: [['v90', ['새 미션: 얼음 바다 — 얼어 있는 해협을 걸어서 건너요. 120초부터 녹고, 녹으면 덴마크 함대가 풀려나요']]],
     nx7: [['v90', ['새 미션: 밀물 1.6배·썰물 0.35배, 쇠사슬, 나포한 로열 찰스 호를 본진까지 끌고 오기']]],
-    nx8: [['v90', ['새 미션: 눈보라 — 등진 쪽 1.2배·마주 본 쪽 0.4배, 러시아 포대 시야 40%. 100초에 바람이 바뀌어요']]],
+    nx8: [['v95', ['나르바 성을 잃으면 실패 · 바람이 80초에 바뀌어요(전 100초)']], ['v90', ['새 미션: 눈보라 — 등진 쪽 1.2배·마주 본 쪽 0.4배, 러시아 포대 시야 40%. 100초에 바람이 바뀌어요']]],
     nx9: [['v90', ['새 미션: 배 끌어 넘기기(육지 0.3배) + 무풍 때 스웨덴 범선 0.15배·포격 멈춤']]],
     nx10: [['v90', ['새 미션: 비보르크 돌파 → 스벤스크순드 수로(40명 넘는 함대 ×0.4) · 남서풍']]],
-    nx11: [['v90', ['새 미션: 여울 좌초 · 떠다니는 포대 · 90초 파커의 신호(선택)']]],
-    nx4: [['v87', ['새 미션: 해협 통행세 — 상선이 지날 때 두 성을 쥔 쪽이 +10씩, 60 모으면 덴마크 휘청']]],
-    nx5: [['v87', ['새 미션: 한밤의 화선, 초승달 진(불이 옆 배로 번짐), 150초 북해 돌풍']]],
-    nxv: [['v87', ['특수 미션: 돌풍 때 바사 호 병력 50을 넘으면 뒤집힘, 바다로 나오면 봉쇄 함대']]],
+    nx11: [['v95', ['여울이 요새 앞에도 생기고 더 넓어져요 · 목표에 휴전 승리 조건 표시 · 신호 설명 문구 정리']], ['v90', ['새 미션: 여울 좌초 · 떠다니는 포대 · 90초 파커의 신호(선택)']]],
+    nx4: [['v95', ['상선은 통행세 수단일 뿐 나포할 수 없다는 안내로 정리(잘못된 나포 설명과 그림 제거)']], ['v87', ['새 미션: 해협 통행세 — 상선이 지날 때 두 성을 쥔 쪽이 +10씩, 60 모으면 덴마크 휘청']]],
+    nx5: [['v95', ['태풍이 70초에 오고 더 넓고 강해져요 · 불은 한 번 탄 배에 다시 안 붙고, 점령하면 4초 뒤 꺼지고, 폭풍우가 지나면 꺼져요 · 등불 부표도 폭풍에 꺼져요']], ['v87', ['새 미션: 한밤의 화선, 초승달 진(불이 옆 배로 번짐), 150초 북해 돌풍']]],
+    nxv: [['v95', ['돌풍이 오기 전 바람 줄기와 어두운 기운이 바사 호 둘레에 보여요']], ['v87', ['특수 미션: 돌풍 때 바사 호 병력 50을 넘으면 뒤집힘, 바다로 나오면 봉쇄 함대']]],
     mx2: [['v75', ['이집트가 파리의 탑을 쥔 동안 아크레는 모든 공격 0.5배 (초반에 먹고 끝나던 문제)', '이집트 보급이 아크레에도 직접 들어감', '이집트 대기 50→25초, 살라딘 120→60초·첫 공격 50초']], ['v77', ['조금 쉽게: 탑을 쥔 동안 아크레 0.5→0.65배, 이집트 대기 25→35초, 살라딘 첫 공격 50→65초']]],
     mx3: [['v75', ['이집트 추격대가 15초부터 18초마다 내 가장 앞선 거점을 쫓아옴', '약탈 항구 수비 12~18 → 26~34', '제한 시간 260→220초, 이집트 대기 40→15초']]],
     mx4: [['v75', ['사다리 부러짐 15초 전 예고(카드·붉은 표시) — 상륙 해변의 내 병력이 반으로', '적 대기 60→20초, 습격 90초→30초부터 30초마다']]],
@@ -3649,7 +3683,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
   const patchOf = id => PATCH_LOG[id] || null;
   const patchLast = id => { const p = patchOf(id); return p ? p[p.length - 1] : null; };
   const patchText = id => { const p = patchLast(id); return p ? `${p[0]} 패치 · ${p[1].join(' · ')}` : ''; };
-  const BUILD = 'v94', DEV_VER = BUILD;
+  const BUILD = 'v95', DEV_VER = BUILD;
   let devOn = store.get('dev', false), memos = store.get('memos', []), memoBack = null, memoAsk = false;
   const memoTime = d => { const t = new Date(d); return `${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const SCREEN = { home: '처음 화면', menu: '자유 전투 설정', camp: '원정 지도', brief: '임무 안내', pauseOv: '일시정지', endOv: '임무 결과', shop: '보물창고', achOv: '업적', winOv: '승리 화면', guideOv: '거점 안내', introOv: '지역 소개', setOv: '설정', trainAsk: '훈련 안내' };
@@ -4982,7 +5016,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       rules: { fortBuff: true,
         script: [20, 45, 70, 95, 120, 145, 170, 195, 220, 245, 270, 295].map((at, i) => ({ at, do: 'convoy', name: '한자 상선 행렬', route: [[212, -20], [212, 200], [212, 330], [216, 480], [230, 640], [210, 860]], amt: 20, speed: 48, toll: { at: [212, 330], tags: ['T1', 'T2'], add: 10 }, say: i === 0 ? '상선 행렬이 해협으로 들어와요 · 해협의 성을 쥔 쪽이 통행세를 거둬요' : null }))
           .concat([{ at: 35, every: 30, until: 900, do: 'raid', from: 'team:2', pick: 'near', to: ['T1', 'T2'], toAny: true, amt: 14, grow: 3, say: null }]) },
-      tour: [{ key: 'toll', f: [212, 330, 70], pic: 'convoy', title: '해협 통행세', text: '25초마다 상선 행렬이 이 해협을 지나가요. 해협 양쪽 성(헬싱보리·헬싱외르)은 각각 쥔 쪽이 +10씩 통행세를 거둬요. 상선은 보호받는 배라 칠 수 없어요. 통행세 60을 모으면 덴마크가 휘청여요.' }],
+      tour: [{ key: 'toll', f: [212, 330, 70], pic: 'toll', title: '해협 통행세', text: '25초마다 상선 행렬이 이 해협을 지나가요. 해협 양쪽 성(헬싱보리·헬싱외르)은 각각 쥔 쪽이 +10씩 통행세를 거둬요. 상선은 보호받는 배라 칠 수 없어요. 통행세 60을 모으면 덴마크가 휘청여요.' }],
       nodes: [
         [330, 760, 'island', 1, 3, 70, 'base', 'H', '뤼베크 함대'],
         [410, 690, 'island', 1, 2, 25, 'yard', null, '슈트랄준트 함대'],
@@ -5005,10 +5039,10 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     { id: 'nx5', name: '그라블린 해전', place: '칼레 앞바다', race: 'lantern', foes: [[2, 'iron', 0, 20]],
       tod: 'night', todNote: '1588년 8월 7일 한밤중, 영국은 불붙은 배 여덟 척을 칼레 앞바다로 흘려보냈어요.',
       brief: '1588년 여름, 스페인 무적함대가 칼레 앞바다에 초승달 모양으로 닻을 내렸다. 한밤중 영국의 화선이 다가오자 서로 묶이다시피 붙어 있던 함대는 불길에 흩어졌고, 이튿날 그라블린에서 무너졌다. 어둠 속에서 화선을 보내 초승달 진을 불태우고 기함 산 마르틴 호를 점령하라.',
-      learn: ['밤: 내 거점과 함대 주변만 보여요. 화선과 불타는 배는 주변 바다를 밝혀요', '초승달 진의 배들은 서로 붙어 있어 한 척에 불이 붙으면 옆 배로 번져요. 불붙은 배는 포격도 멈춰요', '150초쯤 북해 돌풍이 몰아쳐요. 돌풍 안의 함대는 크게 깎여요'],
+      learn: ['밤: 내 거점과 함대 주변만 보여요. 화선과 불타는 배는 주변 바다를 밝혀요', '초승달 진의 배들은 서로 붙어 있어 한 척에 불이 붙으면 옆 배로 번져요. 불붙은 배는 포격도 멈춰요', '70초쯤 북해 돌풍이 몰아쳐요. 돌풍 안의 함대와 거점 병력은 크게 깎이고, 등불 부표는 꺼지고, 불붙은 배는 불이 꺼져요'],
       size: [460, 820], land: [[230, 1010, 250], [-60, -40, 120], [520, -40, 120]],
       rules: { fortBuff: true, night: { sight: 125 }, fire: { charges: 4, recharge: 35 },
-        storms: [{ name: '북해 돌풍', roam: true, at: 150, from: [230, 230], to: [230, 230], x: 230, y: 230, r: 60, speed: 45, dmg: 0.16, hit: 0.05, dur: 1 }],
+        storms: [{ name: '북해 돌풍', roam: true, at: 70, from: [230, 230], to: [230, 230], x: 230, y: 230, r: 100, speed: 45, dmg: 0.22, hit: 0.09, dur: 1 }],
         script: [{ at: 40, every: 30, until: 900, do: 'raid', from: 'team:2', pick: 'near', to: 'front:near', amt: 22, grow: 3, say: '스페인 갤리어스가 반격해 와요!' }] },
       tour: [{ key: 'fire', title: '한밤의 화선', text: '오른쪽 아래 화선 버튼으로 장전하면 다음 출병이 불배가 돼요(4번, 35초마다 1번 채움). 초승달 진의 배들은 붙어 있어 한 척에 불이 붙으면 옆 배로 번지고, 불붙은 배는 포격이 멈춰요. 화선은 어둠 속 바다를 밝혀요.' }],
       nodes: [
@@ -5132,13 +5166,13 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     { id: 'nx8', name: '나르바 전투', place: '에스토니아 나르바', race: 'iron', foes: [[2, 'iron', 0, 12]],
       todNote: '1700년 11월 30일, 눈보라가 러시아 진지 쪽으로 몰아쳤어요.',
       brief: '1700년 겨울, 열여덟 살의 스웨덴 왕 칼 12세는 네 배가 넘는 러시아군이 포위한 나르바를 구하러 왔다. 눈보라가 러시아 진지 쪽으로 불어 러시아 병사들은 앞을 보지 못했고, 스웨덴군은 눈보라를 등지고 돌격했다. 바람이 바뀌기 전에 러시아 진지를 뚫고 본영을 점령하라.',
-      learn: ['눈보라: 등진 내 군대는 1.2배, 마주 본 러시아군은 0.4배로 느려요. 러시아 포대는 앞이 안 보여 사거리가 40%예요', '100초쯤 눈보라 방향이 바뀌어요(10초 전 예고). 그 뒤엔 내 군대가 0.5배로 느려지고 러시아 포대가 다시 멀리 쏴요', '위쪽 나르바 성은 포위된 우리 편이에요. 앞뒤에서 함께 치세요'],
+      learn: ['눈보라: 등진 내 군대는 1.2배, 마주 본 러시아군은 0.4배로 느려요. 러시아 포대는 앞이 안 보여 사거리가 40%예요', '80초쯤 눈보라 방향이 바뀌어요(10초 전 예고). 그 뒤엔 내 군대가 0.5배로 느려지고 러시아 포대가 다시 멀리 쏴요', '위쪽 나르바 성은 포위된 우리 편이에요. 앞뒤에서 함께 치세요. 나르바 성을 잃으면 바로 실패예요'],
       size: [460, 820], land: [[230, 410, 640]],
       rules: { fortBuff: true, snow: { dir: -Math.PI / 2, label: '등진 쪽 ×1.2' }, speed: { me: { land: 1.2 }, foe: { land: 0.4 } }, blind: { team: 2, k: 0.4 },
         script: [{ at: 15, every: 18, until: 900, do: 'raid', from: 'team:2', pick: 'near', to: 'front:near', amt: 14, grow: 3, say: null },
           { at: 30, every: 26, until: 900, do: 'raid', from: ['K', 'R1', 'R2'], pick: 'near', to: 'N', amt: 16, grow: 3, say: null },
-          { at: 92, do: 'set', set: {}, card: 'snowWarn', f: [230, 400, 220], pic: 'blizzard', title: '눈보라가 곧 바뀌어요', text: '10초 뒤 바람이 돌아 눈보라가 우리 쪽으로 불어요. 그 뒤엔 내 군대가 0.5배로 느려지고, 러시아 포대가 다시 멀리 쏴요. 지금 몰아치세요!' },
-          { at: 102, do: 'set', set: { snow: { dir: Math.PI / 2, label: '마주 봄 ×0.5' }, speed: { me: { land: 0.5 }, foe: { land: 1 } }, blind: { team: 1, k: 0.7 } }, say: '눈보라가 바뀌었어요! 이제 내 군대가 눈보라를 마주 봐요 ×0.5', shake: 0.4 }] },
+          { at: 72, do: 'set', set: {}, card: 'snowWarn', f: [230, 400, 220], pic: 'blizzard', title: '눈보라가 곧 바뀌어요', text: '10초 뒤 바람이 돌아 눈보라가 우리 쪽으로 불어요. 그 뒤엔 내 군대가 0.5배로 느려지고, 러시아 포대가 다시 멀리 쏴요. 지금 몰아치세요!' },
+          { at: 82, do: 'set', set: { snow: { dir: Math.PI / 2, label: '마주 봄 ×0.5' }, speed: { me: { land: 0.5 }, foe: { land: 1 } }, blind: { team: 1, k: 0.7 } }, say: '눈보라가 바뀌었어요! 이제 내 군대가 눈보라를 마주 봐요 ×0.5', shake: 0.4 }] },
       tour: [{ key: 'blizzard', f: [230, 360, 200], pic: 'blizzard', title: '등 뒤의 눈보라', text: '눈보라가 러시아 진지 쪽으로 불어요. 등진 내 군대는 1.2배, 마주 본 러시아군은 0.4배로 느리고, 러시아 포대는 앞이 안 보여 사거리가 40%예요. 오른쪽 위 눈보라 표시가 바람 방향이에요. 바람이 바뀌기 전에 진지를 뚫으세요.' }],
       nodes: [
         [230, 740, 'castle', 1, 3, 64, 'base', 'H', '칼 12세의 군대'],
@@ -5157,9 +5191,9 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
         [230, 200, 'castle', 2, 4, 120, 'fort', 'K', '러시아 본영', { anchor: true, max: 150 }],
         [230, 70, 'castle', 1, 2, 30, null, 'N', '나르바 성'],
       ],
-      goal: { type: 'capture', tags: ['K'] }, stars: { time: [100, 150] },
+      goal: { type: 'capture', tags: ['K'], guard: ['N'] }, stars: { time: [100, 150] },
       hints: [
-        { t: '눈보라를 등진 지금이 기회예요. 보루 한 곳에 힘을 모아 뚫으세요.', until: 'secs:14' },
+        { t: '눈보라를 등진 지금이 기회예요. 보루 한 곳에 힘을 모아 뚫으세요. 위쪽 나르바 성은 잃으면 안 돼요.', until: 'secs:14' },
         { t: '바람이 바뀌기 전에 러시아 본영으로! 위쪽 나르바 성에서도 함께 치세요.', focus: 'K', until: 'never' },
       ] },
     { id: 'nx9', name: '강구트 해전', place: '한코 반도', race: 'corsair', foes: [[2, 'iron', 0, 15]],
@@ -5226,20 +5260,20 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
       ] },
     { id: 'nx11', name: '코펜하겐 해전', place: '코펜하겐 왕의 수로', race: 'lantern', foes: [[2, 'iron', 0, 15]],
       brief: '1801년 4월, 넬슨의 함대가 얕은 여울 사이 좁은 왕의 수로로 들어가 덴마크의 떠다니는 포대 줄과 맞붙었다. 뒤에서 지켜보던 총사령관 파커가 물러나라는 신호를 올렸지만, 넬슨은 안대를 한 눈에 망원경을 대고 "신호가 안 보인다"고 했다. 그리고 덴마크에 휴전을 제안해 전투를 끝냈다. 포대 줄을 끊고 트레 크로네르 요새를 점령하라.',
-      learn: ['여울 좌초: 모래색 여울에 30명이 넘는 함대가 들어가면 좌초해 8초 멈추고 포격을 받아요. 수로의 섬을 거쳐 가세요', '떠다니는 포대: 왼쪽 포대 줄이 사거리 안의 내 거점을 7초마다 포격해요. 포대를 3곳 차지하기 전엔 트레 크로네르 요새에 공격이 0.35배만 들어가요', '80초에 파커의 신호가 올라요. 무시하면 예비 함대가 떠나는 대신 60초 동안 공격 1.5배, 그 안에 포대 절반을 차지하면 휴전으로 승리. 따르면 병력 +80이지만 포대가 처음으로 돌아가고 최고 별 2개'],
+      learn: ['여울 좌초: 모래색 여울(오른쪽 길과 요새 앞)에 30명이 넘는 함대가 들어가면 좌초해 10초 멈추고 포격을 받아요. 30명 이하로 나눠 보내세요', '떠다니는 포대: 왼쪽 포대 줄이 사거리 안의 내 거점을 7초마다 포격해요. 포대를 3곳 차지하기 전엔 트레 크로네르 요새에 공격이 0.35배만 들어가요', '80초에 파커의 신호가 올라요. 무시하면 예비 함대가 떠나는 대신 60초 동안 공격 1.5배, 그 안에 포대 절반을 차지하면 휴전으로 승리. 따르면 병력 +80이지만 포대가 처음으로 돌아가고 최고 별 2개'],
       size: [460, 820], land: [[230, -120, 200], [-130, 420, 185]],
       rules: { fortBuff: true,
-        shoal: { zone: [[305, 300, 52], [318, 420, 58], [305, 540, 52]], over: 30, secs: 8, label: '미들 그라운드 여울', title: '좌초!', text: '여울에 30명이 넘는 큰 함대가 들어가면 좌초해 8초 멈추고 포격을 받아요. 왼쪽 수로의 섬을 거쳐 가거나, 작은 함대로 나눠 보내세요.' },
+        shoal: { zone: [[305, 300, 60], [318, 420, 68], [305, 540, 60], [232, 212, 52]], over: 30, secs: 10, label: '미들 그라운드 여울', title: '좌초!', text: '여울에 30명이 넘는 큰 함대가 들어가면 좌초해 10초 멈추고 포격을 받아요. 요새 앞에도 여울이 있어요. 수로의 섬을 거쳐 가거나, 작은 함대로 나눠 보내세요.' },
         bombard: { tags: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'], r: 140, every: 7, pct: 0.06, at: 20 },
         ward: { tag: 'K', need: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'], n: 3, k: 0.35, short: '포대' },
         signal: { at: 80, secs: 10, team: 2, home: 'H', reserve: ['P1', 'P2'], batt: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'], add: 80, grow: 0.85, k: 1.5, furySecs: 60,
           title: '파커가 물러나라는 신호를 올렸어요', text: '뒤의 총사령관이 후퇴 신호를 올렸어요. 넬슨은 망원경을 안대 쪽 눈에 대고 "신호가 안 보인다"고 했지요. 어떻게 할까요?',
-          aLabel: '신호를 못 본 척', aSub: '예비 함대가 떠나요 · 60초 공격 ×1.5 · 포대 절반이면 휴전 승리', bLabel: '신호를 따른다', bSub: '병력 +80 · 포대가 모두 처음으로 · 최고 별 2개',
-          aTitle: '"신호가 안 보인다"', aText: '파커의 예비 함대가 물러나 맵에서 사라졌고 생산도 줄었어요. 대신 60초 동안 내 모든 공격이 1.5배예요. 그 안에 포대 6곳 중 3곳을 차지하면 덴마크가 휴전을 받아들여 바로 승리해요!',
-          bTitle: '신호를 따랐어요', bText: '나가 있던 함대가 피해 없이 돌아오고 파커의 예비 함대가 합류했어요(+80). 하지만 덴마크도 그동안 모든 포대를 처음 병력으로 수리했어요. 이 판의 최고 별은 2개예요.' },
+          aLabel: '신호를 못 본 척', aSub: '예비 함대가 떠나요 · 60초 공격 ×1.5 · 포대 절반이면 휴전 승리', bLabel: '신호를 따른다', bSub: '병력 +80 · 덴마크 포대 병력이 다시 가득 차요 · 최고 별 2개',
+          aTitle: '"신호가 안 보인다"', aText: '파커의 예비 함대가 물러나 맵에서 사라졌고 생산도 줄었어요. 대신 60초 동안 내 모든 공격이 1.5배예요. 그 안에 포대 6곳 중 3곳을 차지하고 8초 버티면 덴마크가 휴전을 받아들여 승리해요!',
+          bTitle: '신호를 따랐어요', bText: '나가 있던 함대가 피해 없이 돌아오고 파커의 예비 함대가 합류했어요(+80). 하지만 그동안 덴마크 포대가 병력을 처음 수준으로 다시 채웠어요. 내가 차지한 포대도 덴마크 것으로 돌아가요. 이 판의 최고 별은 2개예요.' },
         script: [{ at: 25, every: 25, until: 900, do: 'raid', from: ['K', 'A'], pick: 'near', to: 'front:near', amt: 18, grow: 3, say: null }] },
-      tour: [{ key: 'shoal', f: [312, 420, 140], pic: 'shoal', title: '여울과 왕의 수로', text: '오른쪽 모래색 여울에 30명이 넘는 함대가 들어가면 좌초해 8초 멈춰요. 왼쪽은 덴마크의 떠다니는 포대 줄이에요. 수로의 섬을 거쳐 포대 줄을 끊고 위쪽 트레 크로네르 요새로 가세요.' },
-        { key: 'signal', pic: 'signal', title: '80초의 신호', text: '80초에 뒤의 파커가 물러나라는 신호를 올려요. 못 본 척하면 예비 함대가 떠나는 대신 60초 동안 공격 1.5배, 그 안에 포대 절반을 차지하면 휴전 승리예요. 따르면 병력 +80을 얻지만 포대가 모두 수리되고 최고 별은 2개예요.' }],
+      tour: [{ key: 'shoal', f: [312, 420, 140], pic: 'shoal', title: '여울과 왕의 수로', text: '오른쪽 길과 요새 앞의 모래색 여울에 30명이 넘는 함대가 들어가면 좌초해 10초 멈춰요. 왼쪽은 덴마크의 떠다니는 포대 줄이에요. 수로의 섬을 거쳐 포대 줄을 끊고 위쪽 트레 크로네르 요새로 가세요.' },
+        { key: 'signal', pic: 'signal', title: '80초의 신호', text: '80초에 뒤의 파커가 물러나라는 신호를 올려요. 못 본 척하면 예비 함대가 떠나는 대신 60초 동안 공격 1.5배, 그 안에 포대 절반을 차지하고 8초 버티면 휴전 승리예요. 따르면 병력 +80을 얻지만 포대가 모두 수리되고 최고 별은 2개예요.' }],
       nodes: [
         [195, 735, 'island', 1, 3, 80, 'base', 'H', '넬슨 함대'],
         [360, 765, 'island', 1, 2, 40, null, 'P1', '파커 예비 함대'],
@@ -6581,6 +6615,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     if (g.first) t = `${g.first.label} ${g.first.n}명을 채운 뒤 ${t}`;
     if (g.loot) t += ` (${g.noun || '교역선 행렬'}${eul(g.noun || '교역선 행렬')} ${g.loot}번 이상 나포)`;
     if (g.guard) t += ` · ${g.guard.map(lab).join(', ')}${eul(lab(g.guard[g.guard.length - 1]))} 잃으면 실패`;
+    if (m.rules && m.rules.signal && m.rules.signal.batt) t += ` · 또는 ${m.rules.signal.at}초 신호를 못 본 척하고 ${m.rules.signal.furySecs}초 안에 포대 ${Math.ceil(m.rules.signal.batt.length / 2)}곳을 차지하고 8초 버텨 휴전으로 승리`;
     if (g.limit) t += ` (제한 시간 ${fmt(g.limit)})`;
     return t;
   }
@@ -6665,7 +6700,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     if (g.limit) t += ` · 제한 ${fmt(Math.max(0, g.limit - clock))}`;
     if (calmOn()) t += ` · 무풍 ${Math.ceil(RULES.calm.until - clock)}초`;
     if (RULES.ice && !gst.iceGone) { const nx = RULES.ice.cells.filter(c => !c.melted).map(c => c[3]).sort((a, b) => a - b)[0]; if (nx !== undefined) t += nx - RULES.ice.warn > clock ? ` · 해빙 ${Math.ceil(nx - RULES.ice.warn - clock)}초` : ` · 얼음 녹는 중`; }
-    if (RULES.fury && clock < RULES.fury.until) t += ` · 총공세 ${Math.ceil(RULES.fury.until - clock)}초 · 포대 ${RULES.signal.batt.filter(x => tagNode(x) && tagNode(x).owner === 1).length}/${Math.ceil(RULES.signal.batt.length / 2)}`;
+    if (RULES.fury && clock < RULES.fury.until) t += ` · 총공세 ${Math.ceil(RULES.fury.until - clock)}초 · 포대 ${RULES.signal.batt.filter(x => tagNode(x) && tagNode(x).owner === 1).length}/${Math.ceil(RULES.signal.batt.length / 2)}곳 차지하면 휴전 승리` + (RULES.signal.truceSince != null ? ` · 휴전 협상 ${Math.max(0, Math.ceil(8 - (clock - RULES.signal.truceSince)))}초` : '');
     if (RULES.signal && !RULES.signal.shown) t += ` · 신호 ${Math.ceil(Math.max(0, RULES.signal.at - clock))}초`;
     if (RULES.escape) t += ` · 탈출 ${Math.floor(gst.esc || 0)}/${RULES.escape.n}`;
     if (RULES.vasa && !RULES.vasa.out && RULES.vasa.gust.nextAt !== undefined) t += ` · 돌풍 ${Math.max(0, Math.ceil(RULES.vasa.gust.nextAt - clock))}초`;
@@ -6705,14 +6740,14 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     { const e = first('quake'); if (e) add('quake', nodeF(e.sink[0]), '대지진', `${e.at}초쯤 이 거점이 바닷속으로 가라앉아요. 그 안과 그리로 가는 병력도 함께 사라져요.`); }
     if (R.storms && R.storms.length) { const st = R.storms[0]; add('storm', { x: (st.from[0] + st.to[0]) / 2, y: (st.from[1] + st.to[1]) / 2, r: st.r + 10 }, st.name || '허리케인', `${st.at}초쯤 이 길로 지나가요. 안에 든 함대는 깎이고, 거점은 생산과 포격이 멈춰요. 15초 전에 점선 경로로 예고돼요.`); }
     if (R.mountains) add('mountain', circOf(R.mountains.slice(0, 2)), '산맥', '회색 바위산은 육군도 배도 지나갈 수 없어요. 길은 바위 사이로만 나요.');
-    { const e = first('convoy'); if (e) { const q = e.route.find(([x, y]) => x > 0 && y > 0 && x < WW && y < WH) || e.route[1]; add('convoy', { x: q[0], y: q[1], r: 60 }, e.name || (e.land ? '금 대상 행렬' : '보물선단'), `${e.at}초쯤 이 근처로 나타나요. 끌어서 추격해 따라잡으면 병력 +${e.bounty || 45}.`); } }
+    { const e = first('convoy'); if (e && !e.toll) { const q = e.route.find(([x, y]) => x > 0 && y > 0 && x < WW && y < WH) || e.route[1]; add('convoy', { x: q[0], y: q[1], r: 60 }, e.name || (e.land ? '금 대상 행렬' : '보물선단'), `${e.at}초쯤 이 근처로 나타나요. 끌어서 추격해 따라잡으면 병력 +${e.bounty || 45}.`); } }
     { const e = first('calm'); if (e) add('calm', null, '무풍', `${e.at}초쯤 바람이 멎어 ${e.secs}초 동안 적의 범선이 거의 못 움직여요. 노 젓는 내 배는 거의 그대로예요.`); }
     { const e = first('relief'); if (e) add('relief', nodeF(e.tag), '구원군', `${e.at}초쯤 이곳에 구원군이 상륙해요(+${e.add}).`); }
     if (R.morale) add('morale', nodeF(R.morale.tag), '적장', `이 배를 점령하면 잠시 적의 기세가 꺾여요. 그 뒤엔 더 거세게 돌아와요.`);
     { const ws = nodes.filter(n => n.wall); if (ws.length) add('wall', nodeF(ws[0]), '바다 쪽 성벽', '배로 치면 0.6배만 들어가고, 육지로 돌아가 치면 1.25배로 들어가요.'); }
     { const ls = nodes.filter(n => n.loot); if (ls.length) add('loot', circOf(ls.map(n => [n.x, n.y, rad(n)])), '약탈', '금빛 점선 거점을 차지할 때마다 약탈 1회예요. 떠나도 그대로 세요.'); }
     if (m.goal && m.goal.guard) add('guard', nodeF(m.goal.guard[0]), '반드시 지킬 곳', `${m.goal.guard.map(nm).join(', ')}${eul(nm(m.goal.guard[m.goal.guard.length - 1]))} 잃으면 바로 실패예요.`);
-    if (R.fire) add('fire', null, R.fire.greek ? '그리스의 불' : '화선', (R.fire.greek ? '오른쪽 아래 화선 버튼으로 장전하면 다음 출병이 화선이 돼요. 지나가며 부딪친 적 함대를 태워 절반으로 줄여요. ' : '오른쪽 아래 화선 버튼으로 장전하면 다음 출병이 불배가 돼요. ') + '불붙은 거점은 14초 동안 병력이 타들어가고, 생산과 포격이 멈춰요. 불이 꺼지기 전에 차지하면 남은 불에 내 병력도 타요.');
+    if (R.fire) add('fire', null, R.fire.greek ? '그리스의 불' : '화선', (R.fire.greek ? '오른쪽 아래 화선 버튼으로 장전하면 다음 출병이 화선이 돼요. 지나가며 부딪친 적 함대를 태워 절반으로 줄여요. ' : '오른쪽 아래 화선 버튼으로 장전하면 다음 출병이 불배가 돼요. ') + '불붙은 거점은 14초 동안 병력이 타들어가고, 생산과 포격이 멈춰요. 불은 한 번 탄 배에 다시 옮겨붙지 않고, 차지하면 4초 뒤에 꺼지며(그동안은 내 병력도 타요), 폭풍우가 지나가도 꺼져요.');
     if (R.turtle) add('turtle', null, '거북선', '오른쪽 아래 거북선 버튼으로 장전하면 다음 출병이 거북선이 돼요. 요새 포격을 받지 않고 1.5배로 들이받아요.');
     if (R.hotShot && mineFort) add('hotShot', nodeF(mineFort), '달군 포탄', '내 요새의 포격에 맞은 적 함대는 8초 동안 불타며 초당 10%씩 줄고, 불이 곁의 배로 옮겨붙어요.');
     if (R.myGuns && mineFort) add('myGuns', nodeF(mineFort), '화포', `내 요새가 더 빠르고 세게 쏴요. 병력이 ${FIRE_MIN} 밑으로 떨어지면 포격이 멈춰요.${R.plunder ? ` 격침한 병력의 ${Math.round(R.plunder * 100)}%가 그 요새에 더해져요.` : ''}`);
@@ -6864,6 +6899,8 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     const bolt = (g, x, y, h, col = '#ffe58a') => { g.strokeStyle = col; g.lineWidth = 3.5; g.lineJoin = 'round'; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 9, y + h * 0.4); g.lineTo(x + 4, y + h * 0.5); g.lineTo(x - 6, y + h); g.stroke(); g.lineJoin = 'miter'; };
     const swirl = (g, x, y, r, col = 'rgba(200,245,255,0.8)') => { g.strokeStyle = col; g.lineWidth = 2.5; for (let k = 0; k < 3; k++) { g.beginPath(); for (let a = 0; a < 8; a += 0.25) { const q = r * (0.2 + a / 9) + k * 3; g.lineTo(x + Math.cos(a + k * 2.1) * q, y + Math.sin(a + k * 2.1) * q * 0.62); } g.stroke(); } };
     const coin = (g, x, y) => { g.fillStyle = C.gold; g.strokeStyle = C.ink; g.lineWidth = 1; g.beginPath(); g.arc(x, y, 5, 0, 6.283); g.fill(); g.stroke(); };
+    P.toll = g => { bg(g); land(g, [[0, 0], [95, 0], [85, 120], [0, 120]]); land(g, [[300, 0], [205, 0], [215, 120], [300, 120]]); fort(g, 92, 60, 1.2, C.me); fort(g, 208, 60, 1.2, C.foe);
+      for (let k = 0; k < 3; k++) ship(g, 150, 24 + k * 34, 0.9, C.gold, 1.57, { still: true }); tag(g, 46, 100, '+10', C.me); tag(g, 254, 100, '+10', C.foe); tag(g, 150, 108, '상선은 칠 수 없어요 · 성을 쥔 쪽이 징수', C.gold); };
     P.sk_lantern = g => { bg(g); ship(g, 50, 60, 1.3, C.me, 0); g.globalAlpha = 0.4; ship(g, 130, 60, 1.3, C.me, 0); g.globalAlpha = 1; ship(g, 210, 60, 1.3, C.me, 0); arrow(g, 70, 60, 120, 60, C.gold, 3); arrow(g, 150, 60, 196, 60, C.me, 2); g.strokeStyle = C.gold; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(130, 40); g.lineTo(130, 80); g.stroke(); g.setLineDash([]); tag(g, 150, 18, '남은 길 절반 ⚡', C.gold); fort(g, 268, 70, 0.9, C.me); };
     P.sk_coral = g => { bg(g); for (const x of [60, 150, 240]) { blob(g, x, 68, 34, 20); fort(g, x, 62, 0.9, C.me); tag(g, x, 26, '×2', C.gold); } tag(g, 150, 106, '8초 동안 생산 두 배', C.gold); };
     P.sk_iron = g => { bg(g); blob(g, 190, 62, 50, 30); fort(g, 190, 58, 1.4, C.me); g.strokeStyle = '#9fd0ff'; g.lineWidth = 4; g.beginPath(); g.arc(190, 54, 40, 0, 6.283); g.stroke(); ship(g, 60, 56, 1.3, C.foe, 0); arrow(g, 80, 56, 140, 56, C.foe, 3); tag(g, 118, 30, '튕겨요', C.foe); tag(g, 190, 106, '받는 공격 −75%', '#9fd0ff'); };
@@ -7151,7 +7188,9 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     if (Sg) {
       if (!Sg.init) { Sg.init = Sg.batt.map(t => { const n = tagNode(t); return n ? n.count : 0; }); }
       if (!Sg.shown && clock >= Sg.at && state === 'play') { Sg.shown = true; openChoice(Sg); }
-      if (Sg.pick === 'ignore' && !gst.truce && RULES.fury && clock < RULES.fury.until && Sg.batt.filter(t => tagNode(t) && tagNode(t).owner === 1).length >= Math.ceil(Sg.batt.length / 2)) { gst.truce = true; gst.nelson = true; }
+      if (Sg.pick === 'ignore' && !gst.truce && RULES.fury && clock < RULES.fury.until) {   // the Danes need a few seconds of holding the batteries before they ask for a truce
+        if (Sg.batt.filter(t => tagNode(t) && tagNode(t).owner === 1).length >= Math.ceil(Sg.batt.length / 2)) { if (Sg.truceSince == null) { Sg.truceSince = clock; toast('포대를 차지했어요! 덴마크가 휴전을 의논해요 · 8초만 버티세요'); } if (clock - Sg.truceSince >= 8) { gst.truce = true; gst.nelson = true; } }
+        else Sg.truceSince = null; }
       if (Sg.pick === 'ignore' && RULES.fury && !Sg.furyTold && clock >= RULES.fury.until) { Sg.furyTold = true; toast('기세가 꺾였어요 · 이제 지친 함대로 계속 싸워요'); }
     }
   }
@@ -7168,7 +7207,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
         if (!Vs.out) {
           if (G.nextAt === undefined) G.nextAt = G.at;
           if (!G.warned && clock >= G.nextAt - G.warn) { G.warned = true; eventCard('gust', nodeF(v), G.title, G.text, 'storm'); sound('lost'); }
-          if (clock >= G.nextAt) { G.warned = false; G.nextAt = clock + G.every; shake = 0.5; ring(v.x, v.y, rad(v) * 2.4, '#dde8ef', 1.2);
+          if (clock >= G.nextAt) { G.warned = false; G.hitAt = clock; G.nextAt = clock + G.every; shake = 0.5; ring(v.x, v.y, rad(v) * 2.4, '#dde8ef', 1.2);
             if (v.owner === 1 && v.count > G.safe) { v.count = 0; gst.capsized = true; burst(v.x, v.y, '#dde8ef', 30); } else toast(`돌풍이 지나갔어요 · 바사 호 ${Math.round(v.count)}/${G.safe}`); }
         } } }
     const Pc = RULES.pact;
@@ -7278,7 +7317,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     if (RULES.vasa && (() => { const v = tagNode(RULES.vasa.tag); return !v || v.owner !== 1; })()) return end(false, '바사 호를 잃었어요.');
     if (RULES.escape && (gst.esc || 0) >= RULES.escape.n) return end(false, RULES.escape.fail || '적 함대가 빠져나갔어요.');
     if (RULES.tow && RULES.tow.on && (() => { const n = tagNode(RULES.tow.tag); return !n || n.owner !== 1; })()) return end(false, RULES.tow.fail || '나포한 배를 다시 빼앗겼어요.');
-    if (gst.truce && !overtime) { gst.truce = false; victory(); return; }
+    if (gst.truce && !overtime) { gst.truce = false; toast('덴마크가 휴전을 받아들였어요!'); victory(); return; }
     if (overtime) { if (conquestDone()) end(true, null, true); return; }
     if (g.limit && clock > g.limit) return end(false, '제한 시간이 지났어요.');
     let win = false;
@@ -7403,7 +7442,7 @@ summary { cursor: pointer; font-size: 14px; color: var(--foam); }
     $('coach').hidden = true;
     $('winTitle').textContent = mission ? '임무 완수!' : '승리!';
     $('winStars').hidden = !mission; $('winStars').innerHTML = starHtml(lastRes.stars); showWhy($('winWhy'), lastRes, !!mission);
-    $('winText').textContent = mission && mission.epilogue ? mission.epilogue : mission ? '목표를 달성했어요. 여기서 끝내도 되고, 남은 적을 끝까지 몰아낼 수도 있어요.' : '승리 조건을 달성했어요. 여기서 끝내도 되고, 바다를 완전히 점령할 때까지 계속할 수도 있어요.';
+    $('winText').textContent = gst.nelson && mission && mission.id === 'nx11' ? '포대 절반을 잃은 덴마크가 휴전을 받아들였어요. 넬슨은 요새까지 가지 않고, 신호를 못 본 척한 채 전투를 끝냈어요. 여기서 끝내도 되고, 요새 점령까지 계속할 수도 있어요.' : mission && mission.epilogue ? mission.epilogue : mission ? '목표를 달성했어요. 여기서 끝내도 되고, 남은 적을 끝까지 몰아낼 수도 있어요.' : '승리 조건을 달성했어요. 여기서 끝내도 되고, 바다를 완전히 점령할 때까지 계속할 수도 있어요.';
     $('winReward').textContent = rewardText(lastRes.reward);
     $('winOv').hidden = false;
   }
